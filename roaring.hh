@@ -1,8 +1,7 @@
-/* auto-generated on Tue 13 Sep 2016 17:42:00 EDT. Do not edit! */
+/* auto-generated on Wed 14 Sep 2016 11:52:45 EDT. Do not edit! */
 #include "roaring.h"
 #include "roaring.c"
 /* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
-#line 8 "/Users/lemire/CVS/github/CRoaring/cpp/roaring.hh"
 /*
 A C++ header for Roaring Bitmaps.
 */
