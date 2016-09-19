@@ -1,4 +1,4 @@
-/* auto-generated on Wed 14 Sep 2016 11:52:45 EDT. Do not edit! */
+/* auto-generated on Mon 19 Sep 2016 18:52:53 EDT. Do not edit! */
 #include "roaring.h"
 #include "roaring.c"
 /* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
@@ -162,6 +162,16 @@ class Roaring {
     * Returns true if the bitmap is empty (cardinality is zero).
     */
     bool isEmpty() const { return roaring_bitmap_is_empty(roaring); }
+
+    /**
+    * Returns true if the bitmap is subset of the other.
+    */
+    bool isSubset(const Roaring &r) const { return roaring_bitmap_is_subset(roaring, r.roaring); }
+
+    /**
+    * Returns true if the bitmap is strict subset of the other.
+    */
+    bool isStrictSubset(const Roaring &r) const { return roaring_bitmap_is_strict_subset(roaring, r.roaring); }
 
     /**
      * Convert the bitmap to an array. Write the output to "ans",

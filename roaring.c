@@ -1,4 +1,4 @@
-/* auto-generated on Wed 14 Sep 2016 11:52:45 EDT. Do not edit! */
+/* auto-generated on Mon 19 Sep 2016 18:52:53 EDT. Do not edit! */
 #line 1 "roaring.c"
 #include "roaring.h"
 /* begin file src/array_util.c */
@@ -2549,6 +2549,32 @@ bool array_container_equals(array_container_t *container1,
     return true;
 }
 
+bool array_container_is_subset(array_container_t *container1,
+                            array_container_t *container2) {
+    if (container1->cardinality > container2->cardinality) {
+        return false;
+    }
+    int i1 = 0, i2 = 0;
+    while(i1 < container1->cardinality && i2 < container2->cardinality) {
+        if(container1->array[i1] == container2->array[i2]) {
+            i1++;
+            i2++;
+        }
+        else if(container1->array[i1] > container2->array[i2]) {
+            i2++;
+        }
+        else { // container1->array[i1] < container2->array[i2]
+            return false;
+        }
+    }
+    if(i1 == container1->cardinality) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
 int32_t array_container_read(int32_t cardinality, array_container_t *container,
                              const char *buf) {
     if (container->capacity < cardinality) {
@@ -3095,6 +3121,21 @@ bool bitset_container_equals(bitset_container_t *container1, bitset_container_t 
 	}
 	for(int32_t i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; ++i ) {
 		if(container1->array[i] != container2->array[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+bool bitset_container_is_subset(bitset_container_t *container1,
+                          bitset_container_t *container2) {
+    if((container1->cardinality != BITSET_UNKNOWN_CARDINALITY) && (container2->cardinality != BITSET_UNKNOWN_CARDINALITY)) {
+        if(container1->cardinality > container2->cardinality) {
+            return false;
+        }
+    }
+    for(int32_t i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; ++i ) {
+		if((container1->array[i] & container2->array[i]) != container1->array[i]) {
 			return false;
 		}
 	}
@@ -4796,6 +4837,141 @@ int run_container_negation_range_inplace(run_container_t *src,
     return return_typecode;
 }
 /* end file src/containers/mixed_negation.c */
+/* begin file src/containers/mixed_subset.c */
+
+bool array_container_is_subset_bitset(array_container_t* container1,
+                                  bitset_container_t* container2) {
+    if (container2->cardinality != BITSET_UNKNOWN_CARDINALITY) {
+        if (container2->cardinality < container1->cardinality) {
+            return false;
+        }
+    }
+    for (int i = 0; i < container1->cardinality; ++i) {
+        if(!bitset_container_contains(container2, container1->array[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool run_container_is_subset_array(run_container_t* container1,
+                                array_container_t* container2) {
+    if (run_container_cardinality(container1) > container2->cardinality)
+        return false;
+    int32_t start_pos = -1, stop_pos = -1;
+    for (int i = 0; i < container1->n_runs; ++i) {
+        int32_t start = container1->runs[i].value;
+        int32_t stop = start+container1->runs[i].length;
+        start_pos = advanceUntil(container2->array, stop_pos, container2->cardinality, start);
+        stop_pos = advanceUntil(container2->array, stop_pos, container2->cardinality, stop);
+        if(start_pos == container2->cardinality) {
+            return false;
+        }
+        else if(stop_pos-start_pos != stop-start ||
+            container2->array[start_pos] != start || container2->array[stop_pos] != stop) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool array_container_is_subset_run(array_container_t* container1,
+                                run_container_t* container2) {
+    if (container1->cardinality > run_container_cardinality(container2))
+        return false;
+    int i_array = 0, i_run = 0;
+    while(i_array < container1->cardinality && i_run < container2->n_runs) {
+        uint32_t start = container2->runs[i_run].value;
+        uint32_t stop = start+container2->runs[i_run].length;
+        if(container1->array[i_array] < start) {
+            return false;
+        }
+        else if (container1->array[i_array] > stop) {
+            i_run ++;
+        }
+        else { // the value of the array is in the run
+            i_array++;
+        }
+    }
+    if(i_array == container1->cardinality) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+bool run_container_is_subset_bitset(run_container_t* container1,
+                                 bitset_container_t* container2) {
+    // todo: this code could be much faster
+    if (container2->cardinality != BITSET_UNKNOWN_CARDINALITY) {
+        if (container2->cardinality < run_container_cardinality(container1)) {
+            return false;
+        }
+    } else {
+        int32_t card = bitset_container_compute_cardinality(
+            container2);  // modify container2?
+        if (card < run_container_cardinality(container1)) {
+            return false;
+        }
+    }
+    for (int i = 0; i < container1->n_runs; ++i) {
+        uint32_t run_start = container1->runs[i].value;
+        uint32_t le = container1->runs[i].length;
+        for (uint32_t j = run_start; j <= run_start + le; ++j) {
+            if (!bitset_container_contains(container2, j)) {
+                return false;
+            }
+        }
+    }
+    return true;
+ }
+
+bool bitset_container_is_subset_run(bitset_container_t* container1,
+                              run_container_t* container2) {
+    // todo: this code could be much faster
+    if (container1->cardinality != BITSET_UNKNOWN_CARDINALITY) {
+        if (container1->cardinality > run_container_cardinality(container2)) {
+            return false;
+        }
+    }
+    int32_t i_bitset=0, i_run=0;
+    while(i_bitset < BITSET_CONTAINER_SIZE_IN_WORDS && i_run < container2->n_runs) {
+        uint64_t w = container1->array[i_bitset];
+        while (w != 0 && i_run < container2->n_runs) {
+            uint32_t start = container2->runs[i_run].value;
+            uint32_t stop = start+container2->runs[i_run].length;
+            uint64_t t = w & -w;
+            uint16_t r = i_bitset * 64 + __builtin_ctzll(w);
+            if (r < start) {
+                return false;
+            }
+            else if(r > stop) {
+                i_run++;
+                continue;
+            }
+            else {
+                w ^= t;
+            }
+        }
+        if(w == 0) {
+            i_bitset++;
+        }
+        else {
+            return false;
+        }
+    }
+    if(i_bitset < BITSET_CONTAINER_SIZE_IN_WORDS) {
+        // terminated iterating on the run containers, check that rest of bitset is empty
+        for(; i_bitset < BITSET_CONTAINER_SIZE_IN_WORDS ; i_bitset++) {
+            if(container1->array[i_bitset] != 0) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+/* end file src/containers/mixed_subset.c */
 /* begin file src/containers/mixed_union.c */
 /*
  * mixed_union.c
@@ -5975,6 +6151,47 @@ bool run_container_equals(run_container_t *container1,
     return true;
 }
 
+bool run_container_is_subset(run_container_t *container1,
+                        run_container_t *container2){
+    int i1 = 0, i2 = 0;
+    while(i1 < container1->n_runs && i2 < container2->n_runs) {
+        int start1 = container1->runs[i1].value;
+        int stop1 = start1 + container1->runs[i1].length;
+        int start2 = container2->runs[i2].value;
+        int stop2 = start2 + container2->runs[i2].length;
+        if(start1 < start2) {
+            return false;
+        }
+        else { // start1 >= start2
+            if(stop1 < stop2) {
+                i1++;
+            }
+            else if(stop1 == stop2) {
+                i1++;
+                i2++;
+            }
+            else { // stop1 > stop2
+                i2++;
+            }
+        }
+    }
+    if(i1 == container1->n_runs) {
+        return true;
+    }
+    else {
+        return false;
+    }
+
+
+
+    for (int32_t i = 0; i < container1->n_runs; ++i) {
+        if ((container1->runs[i].value != container2->runs[i].value) ||
+            (container1->runs[i].length != container2->runs[i].length))
+            return false;
+    }
+    return true;
+}
+
 // TODO: write smart_append_exclusive version to match the overloaded 1 param
 // Java version (or  is it even used?)
 
@@ -6052,6 +6269,7 @@ bool run_container_select(const run_container_t *container,
 #include <string.h>
 
 extern inline bool roaring_bitmap_contains(const roaring_bitmap_t *r, uint32_t val);
+extern inline bool roaring_bitmap_is_strict_subset(const roaring_bitmap_t *ra1, const roaring_bitmap_t *ra2);
 
 
 // this is like roaring_bitmap_add, but it populates pointer arguments in such a way
@@ -7114,7 +7332,7 @@ bool roaring_iterate(const roaring_bitmap_t *ra, roaring_iterator iterator,
     return true;
 }
 
-bool roaring_bitmap_equals(roaring_bitmap_t *ra1, roaring_bitmap_t *ra2) {
+bool roaring_bitmap_equals(const roaring_bitmap_t *ra1, const roaring_bitmap_t *ra2) {
     if (ra1->high_low_container.size != ra2->high_low_container.size) {
         return false;
     }
@@ -7131,6 +7349,39 @@ bool roaring_bitmap_equals(roaring_bitmap_t *ra1, roaring_bitmap_t *ra2) {
         }
     }
     return true;
+}
+
+bool roaring_bitmap_is_subset(const roaring_bitmap_t *ra1, const roaring_bitmap_t *ra2) {
+    const int length1 = ra1->high_low_container.size,
+              length2 = ra2->high_low_container.size;
+
+    int pos1 = 0, pos2 = 0;
+
+    while (pos1 < length1 && pos2 < length2) {
+        const uint16_t s1 = ra_get_key_at_index(& ra1->high_low_container, pos1);
+        const uint16_t s2 = ra_get_key_at_index(& ra2->high_low_container, pos2);
+
+        if (s1 == s2) {
+            uint8_t container_type_1, container_type_2;
+            void *c1 = ra_get_container_at_index(& ra1->high_low_container, pos1,
+                                                 &container_type_1);
+            void *c2 = ra_get_container_at_index(& ra2->high_low_container, pos2,
+                                                 &container_type_2);
+            bool subset = container_is_subset(c1, container_type_1, c2, container_type_2);
+            if(!subset)
+                return false;
+            ++pos1;
+            ++pos2;
+        } else if (s1 < s2) {  // s1 < s2
+            return false;
+        } else {  // s1 > s2
+            pos2 = ra_advance_until(& ra2->high_low_container, s1, pos2);
+        }
+    }
+    if(pos1 == length1)
+        return true;
+    else
+        return false;
 }
 
 static void insert_flipped_container(roaring_array_t *ans_arr,
