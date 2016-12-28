@@ -1,4 +1,4 @@
-/* auto-generated on Mon 19 Sep 2016 18:52:53 EDT. Do not edit! */
+/* auto-generated on Wed Dec 28 17:58:15 EST 2016. Do not edit! */
 #line 1 "roaring.c"
 #include "roaring.h"
 /* begin file src/array_util.c */
@@ -2195,6 +2195,18 @@ array_container_t *array_container_clone(const array_container_t *src) {
     return newcontainer;
 }
 
+int array_container_shrink_to_fit(array_container_t *src) {
+	if(src->cardinality == src->capacity) return 0; // nothing to do
+	int savings = src->capacity -  src->cardinality;
+	src->capacity = src->cardinality;
+    uint16_t *oldarray = src->array;
+    src->array =
+        (uint16_t *)realloc(oldarray, src->capacity * sizeof(uint16_t));
+    if (src->array == NULL) free(oldarray); // should never happen?
+    return savings;
+}
+
+
 /* Free memory. */
 void array_container_free(array_container_t *arr) {
     free(arr->array);
@@ -2885,30 +2897,6 @@ int bitset_container_##opname##_justcard(const bitset_container_t *src_1, \
 }
 
 
-
-
-
-/*
-int bitset_container_##opname(const bitset_container_t *src_1,          \
-                              const bitset_container_t *src_2,          \
-                              bitset_container_t *dst) {                \
-    const __m256i *array_1 = (const __m256i *) src_1->array;            \
-    const __m256i *array_2 = (const __m256i *) src_2->array;            \
-    __m256i *out = (__m256i *) dst->array;                              \
-    dst->cardinality = avx2_harley_seal_popcount256andstore_##opname(array_1,\
-    		array_2, out,BITSET_CONTAINER_SIZE_IN_WORDS / (WORDS_IN_AVX2_REG));\
-    return dst->cardinality;                                            \
-}                                                                       \
-*/
-
-
-/*int bitset_container_##opname##_justcard(const bitset_container_t *src_1, \
-                              const bitset_container_t *src_2) {        \
-    const __m256i *data1 = (const __m256i *) src_1->array;            \
-    const __m256i *data2 = (const __m256i *) src_2->array;            \
-    return avx2_harley_seal_popcount256_##opname(data1,                \
-    		data2, BITSET_CONTAINER_SIZE_IN_WORDS / (WORDS_IN_AVX2_REG));\
-}*/
 
 #else /* not USEAVX  */
 
@@ -5598,6 +5586,16 @@ run_container_t *run_container_create_given_capacity(int32_t size) {
     return run;
 }
 
+int run_container_shrink_to_fit(run_container_t *src) {
+	if(src->n_runs == src->capacity) return 0; // nothing to do
+	int savings = src->capacity -  src->n_runs;
+	src->capacity = src->n_runs;
+    rle16_t *oldruns = src->runs;
+    src->runs =
+        (rle16_t *)realloc(oldruns, src->capacity * sizeof(rle16_t));
+    if (src->runs == NULL) free(oldruns); // should never happen?
+    return savings;
+}
 /* Create a new run container. Return NULL in case of failure. */
 run_container_t *run_container_create(void) {
     return run_container_create_given_capacity(RUN_DEFAULT_INIT_SIZE);
@@ -5639,7 +5637,7 @@ int run_container_cardinality(const run_container_t *run) {
         }
         // a store might be faster than extract?
         uint32_t buffer[sizeof(__m256i) / sizeof(rle16_t)];
-        _mm256_store_si256((__m256i *)buffer, total);
+        _mm256_storeu_si256((__m256i *)buffer, total);
         sum += (buffer[0] + buffer[1]) + (buffer[2] + buffer[3]) +
                (buffer[4] + buffer[5]) + (buffer[6] + buffer[7]);
     }
@@ -6181,15 +6179,6 @@ bool run_container_is_subset(run_container_t *container1,
     else {
         return false;
     }
-
-
-
-    for (int32_t i = 0; i < container1->n_runs; ++i) {
-        if ((container1->runs[i].value != container2->runs[i].value) ||
-            (container1->runs[i].length != container2->runs[i].length))
-            return false;
-    }
-    return true;
 }
 
 // TODO: write smart_append_exclusive version to match the overloaded 1 param
@@ -6732,15 +6721,15 @@ roaring_bitmap_t *roaring_bitmap_or(const roaring_bitmap_t *x1,
     uint8_t container_result_type = 0;
     const int length1 = x1->high_low_container.size,
               length2 = x2->high_low_container.size;
-    roaring_bitmap_t *answer =
-        roaring_bitmap_create_with_capacity(length1 + length2);
-    answer->copy_on_write = x1->copy_on_write && x2->copy_on_write;
     if (0 == length1) {
         return roaring_bitmap_copy(x2);
     }
     if (0 == length2) {
         return roaring_bitmap_copy(x1);
     }
+    roaring_bitmap_t *answer =
+        roaring_bitmap_create_with_capacity(length1 + length2);
+    answer->copy_on_write = x1->copy_on_write && x2->copy_on_write;
     int pos1 = 0, pos2 = 0;
     uint8_t container_type_1, container_type_2;
     uint16_t s1 = ra_get_key_at_index(& x1->high_low_container, pos1);
@@ -6826,19 +6815,21 @@ void roaring_bitmap_or_inplace(roaring_bitmap_t *x1,
         if (s1 == s2) {
             void *c1 = ra_get_container_at_index(& x1->high_low_container, pos1,
                                                  &container_type_1);
-            c1 = get_writable_copy_if_shared(c1, &container_type_1);
+            if(!container_is_full(c1,container_type_1)) {
+				c1 = get_writable_copy_if_shared(c1, &container_type_1);
 
-            void *c2 = ra_get_container_at_index(& x2->high_low_container, pos2,
-                                                 &container_type_2);
-            void *c = container_ior(c1, container_type_1, c2, container_type_2,
-                                    &container_result_type);
-            if (c != c1) {  // in this instance a new container was created, and
-                            // we need to free the old one
-                container_free(c1, container_type_1);
+				void *c2 = ra_get_container_at_index(& x2->high_low_container, pos2,
+													 &container_type_2);
+				void *c = container_ior(c1, container_type_1, c2, container_type_2,
+										&container_result_type);
+				if (c != c1) {  // in this instance a new container was created, and
+								// we need to free the old one
+					container_free(c1, container_type_1);
+				}
+
+				ra_set_container_at_index(& x1->high_low_container, pos1, c,
+										  container_result_type);
             }
-
-            ra_set_container_at_index(& x1->high_low_container, pos1, c,
-                                      container_result_type);
             ++pos1;
             ++pos2;
             if (pos1 == length1) break;
@@ -6882,15 +6873,15 @@ roaring_bitmap_t *roaring_bitmap_xor(const roaring_bitmap_t *x1,
     uint8_t container_result_type = 0;
     const int length1 = x1->high_low_container.size,
               length2 = x2->high_low_container.size;
-    roaring_bitmap_t *answer =
-        roaring_bitmap_create_with_capacity(length1 + length2);
-    answer->copy_on_write = x1->copy_on_write && x2->copy_on_write;
     if (0 == length1) {
         return roaring_bitmap_copy(x2);
     }
     if (0 == length2) {
         return roaring_bitmap_copy(x1);
     }
+    roaring_bitmap_t *answer =
+        roaring_bitmap_create_with_capacity(length1 + length2);
+    answer->copy_on_write = x1->copy_on_write && x2->copy_on_write;
     int pos1 = 0, pos2 = 0;
     uint8_t container_type_1, container_type_2;
     uint16_t s1 = ra_get_key_at_index(& x1->high_low_container, pos1);
@@ -7223,6 +7214,19 @@ bool roaring_bitmap_run_optimize(roaring_bitmap_t *r) {
     }
     return answer;
 }
+
+size_t roaring_bitmap_shrink_to_fit(roaring_bitmap_t *r) {
+    size_t answer = 0;
+    for (int i = 0; i < r->high_low_container.size; i++) {
+        uint8_t typecode_original;
+        void *c = ra_get_container_at_index(& r->high_low_container, i,
+                                            &typecode_original);
+        answer += container_shrink_to_fit(c, typecode_original);
+    }
+    answer += ra_shrink_to_fit(&r->high_low_container);
+    return answer;
+}
+
 
 /**
  *  Remove run-length encoding even when it is more space efficient
@@ -7689,32 +7693,34 @@ void roaring_bitmap_lazy_or_inplace(roaring_bitmap_t *x1,
         if (s1 == s2) {
             void *c1 = ra_get_container_at_index(& x1->high_low_container, pos1,
                                                  &container_type_1);
-            if ((bitsetconversion == false) ||
-                (get_container_type(c1, container_type_1) ==
-                 BITSET_CONTAINER_TYPE_CODE)) {
-                c1 = get_writable_copy_if_shared(c1, &container_type_1);
-            } else {
-                // convert to bitset
-                void *oldc1 = c1;
-                uint8_t oldt1 = container_type_1;
-                c1 = (void *)container_unwrap_shared(c1, &container_type_1);
-                c1 = container_to_bitset(c1, container_type_1);
-                container_free(oldc1, oldt1);
-                container_type_1 = BITSET_CONTAINER_TYPE_CODE;
-            }
+            if(!container_is_full(c1,container_type_1)) {
+				if ((bitsetconversion == false) ||
+					(get_container_type(c1, container_type_1) ==
+					 BITSET_CONTAINER_TYPE_CODE)) {
+					c1 = get_writable_copy_if_shared(c1, &container_type_1);
+				} else {
+					// convert to bitset
+					void *oldc1 = c1;
+					uint8_t oldt1 = container_type_1;
+					c1 = (void *)container_unwrap_shared(c1, &container_type_1);
+					c1 = container_to_bitset(c1, container_type_1);
+					container_free(oldc1, oldt1);
+					container_type_1 = BITSET_CONTAINER_TYPE_CODE;
+				}
 
-            void *c2 = ra_get_container_at_index(& x2->high_low_container, pos2,
-                                                 &container_type_2);
-            void *c =
-                container_lazy_ior(c1, container_type_1, c2, container_type_2,
-                                   &container_result_type);
-            if (c != c1) {  // in this instance a new container was created, and
-                            // we need to free the old one
-                container_free(c1, container_type_1);
-            }
+				void *c2 = ra_get_container_at_index(& x2->high_low_container, pos2,
+													 &container_type_2);
+				void *c =
+					container_lazy_ior(c1, container_type_1, c2, container_type_2,
+									   &container_result_type);
+				if (c != c1) {  // in this instance a new container was created, and
+								// we need to free the old one
+					container_free(c1, container_type_1);
+				}
 
-            ra_set_container_at_index(& x1->high_low_container, pos1, c,
-                                      container_result_type);
+				ra_set_container_at_index(& x1->high_low_container, pos1, c,
+										  container_result_type);
+            }
             ++pos1;
             ++pos2;
             if (pos1 == length1) break;
@@ -7985,6 +7991,7 @@ static bool realloc_array(roaring_array_t *ra, size_t new_capacity) {
     }*/
 	const size_t memoryneeded = new_capacity * (sizeof(uint16_t)+sizeof(void *)+sizeof(uint8_t));
 	void * bigalloc = malloc(memoryneeded);
+	void * oldbigalloc = ra->containers;
 	if(! bigalloc) return false;
 	void** newcontainers = (void **) bigalloc;
 	uint16_t * newkeys = (uint16_t *)(newcontainers + new_capacity);
@@ -7997,6 +8004,7 @@ static bool realloc_array(roaring_array_t *ra, size_t new_capacity) {
 	ra->keys = newkeys;
 	ra->typecodes = newtypecodes;
 	ra->allocation_size = new_capacity;
+	free(oldbigalloc);
     return true;
 }
 
@@ -8016,6 +8024,14 @@ bool ra_init_with_capacity(roaring_array_t *new_ra, uint32_t cap) {
 
     return true;
 }
+
+int ra_shrink_to_fit(roaring_array_t *ra) {
+	int savings = (ra->allocation_size - ra->size) * (sizeof(uint16_t)+sizeof(void *)+sizeof(uint8_t));
+	realloc_array(ra, ra->size);// assumes it succeeds
+	ra->allocation_size = ra->size;
+	return savings;
+}
+
 bool ra_init(roaring_array_t * t) {
 	return ra_init_with_capacity(t, INITIAL_CAPACITY);
 }
