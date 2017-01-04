@@ -1,7 +1,7 @@
-/* auto-generated on Thu 29 Dec 2016 17:30:11 EST. Do not edit! */
+/* auto-generated on Wed Jan  4 15:07:23 EST 2017. Do not edit! */
 #include "roaring.h"
 #include "roaring.c"
-/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
 A C++ header for Roaring Bitmaps.
 */
@@ -122,6 +122,17 @@ class Roaring {
      */
     Roaring &operator&=(const Roaring &r) {
         roaring_bitmap_and_inplace(roaring, r.roaring);
+        return *this;
+    }
+
+    /**
+     * Compute the difference between the current bitmap and the provided
+     * bitmap,
+     * writing the result in the current bitmap. The provided bitmap is not
+     * modified.
+     */
+    Roaring &operator-=(const Roaring &r) {
+        roaring_bitmap_andnot_inplace(roaring, r.roaring);
         return *this;
     }
 
@@ -312,6 +323,19 @@ class Roaring {
         return Roaring(r);
     }
 
+
+    /**
+     * Computes the difference between two bitmaps and returns new bitmap.
+     * The current bitmap and the provided bitmap are unchanged.
+     */
+    Roaring operator-(const Roaring &o) const {
+        roaring_bitmap_t *r = roaring_bitmap_andnot(roaring, o.roaring);
+        if (r == NULL) {
+            throw std::runtime_error("failed materalization in andnot");
+        }
+        return Roaring(r);
+    }
+
     /**
      * Computes the union between two bitmaps and returns new bitmap.
      * The current bitmap and the provided bitmap are unchanged.
@@ -494,4 +518,4 @@ RoaringSetBitForwardIterator Roaring::end() const {
 }
 
 #endif /* INCLUDE_ROARING_HH_ */
-/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
