@@ -1,6 +1,5 @@
-/* auto-generated on Wed Jan  4 15:07:23 EST 2017. Do not edit! */
+/* auto-generated on Fri Jan  6 09:55:09 EST 2017. Do not edit! */
 #include "roaring.h"
-#include "roaring.c"
 /* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
 A C++ header for Roaring Bitmaps.
@@ -509,11 +508,11 @@ public:
 };
 
 
-RoaringSetBitForwardIterator Roaring::begin() const {
+inline RoaringSetBitForwardIterator Roaring::begin() const {
       return RoaringSetBitForwardIterator(*this);
 }
 
-RoaringSetBitForwardIterator Roaring::end() const {
+inline RoaringSetBitForwardIterator Roaring::end() const {
       return RoaringSetBitForwardIterator(*this, true);
 }
 
