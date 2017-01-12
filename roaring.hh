@@ -1,6 +1,5 @@
-/* auto-generated on Thu 29 Dec 2016 17:30:11 EST. Do not edit! */
+/* auto-generated on Thu 12 Jan 2017 16:53:12 EST. Do not edit! */
 #include "roaring.h"
-#include "roaring.c"
 /* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
 A C++ header for Roaring Bitmaps.
@@ -89,6 +88,20 @@ class Roaring {
      */
     void remove(uint32_t x) { roaring_bitmap_remove(roaring, x); }
 
+
+    /**
+     * Return the largest value (if not empty)
+     *
+     */
+    uint32_t maximum() { return roaring_bitmap_maximum(roaring); }
+
+
+    /**
+    * Return the smallest value (if not empty)
+    *
+    */
+    uint32_t minimum() { return roaring_bitmap_minimum(roaring); }
+
     /**
      * Check if value x is present
      */
@@ -122,6 +135,17 @@ class Roaring {
      */
     Roaring &operator&=(const Roaring &r) {
         roaring_bitmap_and_inplace(roaring, r.roaring);
+        return *this;
+    }
+
+    /**
+     * Compute the difference between the current bitmap and the provided
+     * bitmap,
+     * writing the result in the current bitmap. The provided bitmap is not
+     * modified.
+     */
+    Roaring &operator-=(const Roaring &r) {
+        roaring_bitmap_andnot_inplace(roaring, r.roaring);
         return *this;
     }
 
@@ -237,14 +261,19 @@ class Roaring {
 
     /**
      * If the size of the roaring bitmap is strictly greater than rank, then
-     this
-       function returns true and set element to the element of given rank.
-       Otherwise, it returns false.
+     * this function returns true and set element to the element of given rank.
+     *   Otherwise, it returns false.
      */
     bool select(uint32_t rank, uint32_t *element) const {
         return roaring_bitmap_select(roaring, rank, element);
     }
 
+    /**
+    * Returns the number of integers that are smaller or equal to x.
+    */
+    uint64_t rank(uint32_t x) {
+        return roaring_bitmap_rank(roaring, x);
+    }
     /**
      * write a bitmap to a char buffer. This is meant to be compatible with
      * the
@@ -308,6 +337,19 @@ class Roaring {
         roaring_bitmap_t *r = roaring_bitmap_and(roaring, o.roaring);
         if (r == NULL) {
             throw std::runtime_error("failed materalization in and");
+        }
+        return Roaring(r);
+    }
+
+
+    /**
+     * Computes the difference between two bitmaps and returns new bitmap.
+     * The current bitmap and the provided bitmap are unchanged.
+     */
+    Roaring operator-(const Roaring &o) const {
+        roaring_bitmap_t *r = roaring_bitmap_andnot(roaring, o.roaring);
+        if (r == NULL) {
+            throw std::runtime_error("failed materalization in andnot");
         }
         return Roaring(r);
     }
@@ -485,11 +527,11 @@ public:
 };
 
 
-RoaringSetBitForwardIterator Roaring::begin() const {
+inline RoaringSetBitForwardIterator Roaring::begin() const {
       return RoaringSetBitForwardIterator(*this);
 }
 
-RoaringSetBitForwardIterator Roaring::end() const {
+inline RoaringSetBitForwardIterator Roaring::end() const {
       return RoaringSetBitForwardIterator(*this, true);
 }
 
