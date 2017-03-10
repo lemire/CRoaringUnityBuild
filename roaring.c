@@ -1,4 +1,4 @@
-/* auto-generated on Wed 22 Feb 2017 12:23:33 EST. Do not edit! */
+/* auto-generated on Fri Mar 10 10:20:51 EST 2017. Do not edit! */
 #include "roaring.h"
 /* begin file src/array_util.c */
 #include <assert.h>
@@ -583,7 +583,7 @@ int32_t intersect_skewed_uint16(const uint16_t *small, size_t size_s,
 
     while (true) {
         if (val_l < val_s) {
-            idx_l = advanceUntil(large, idx_l, size_l, val_s);
+            idx_l = advanceUntil(large, (int32_t)idx_l, (int32_t)size_l, val_s);
             if (idx_l == size_l) break;
             val_l = large[idx_l];
         } else if (val_s < val_l) {
@@ -595,13 +595,13 @@ int32_t intersect_skewed_uint16(const uint16_t *small, size_t size_s,
             idx_s++;
             if (idx_s == size_s) break;
             val_s = small[idx_s];
-            idx_l = advanceUntil(large, idx_l, size_l, val_s);
+            idx_l = advanceUntil(large, (int32_t)idx_l, (int32_t)size_l, val_s);
             if (idx_l == size_l) break;
             val_l = large[idx_l];
         }
     }
 
-    return pos;
+    return (int32_t)pos;
 }
 
 /**
@@ -617,19 +617,19 @@ int32_t intersect_uint16(const uint16_t *A, const size_t lenA,
     while (1) {
         while (*A < *B) {
         SKIP_FIRST_COMPARE:
-            if (++A == endA) return (out - initout);
+            if (++A == endA) return (int32_t)(out - initout);
         }
         while (*A > *B) {
-            if (++B == endB) return (out - initout);
+            if (++B == endB) return (int32_t)(out - initout);
         }
         if (*A == *B) {
             *out++ = *A;
-            if (++A == endA || ++B == endB) return (out - initout);
+            if (++A == endA || ++B == endB) return (int32_t)(out - initout);
         } else {
             goto SKIP_FIRST_COMPARE;
         }
     }
-    return (out - initout);  // NOTREACHED
+    return (int32_t)(out - initout);  // NOTREACHED
 }
 
 /**
@@ -806,11 +806,11 @@ int32_t xor_uint16(const uint16_t *array_1, int32_t card_1,
   if (pos1 < card_1) {
       const size_t n_elems = card_1 - pos1;
       memcpy(out + pos_out, array_1 + pos1, n_elems * sizeof(uint16_t));
-      pos_out += n_elems;
+      pos_out += (int32_t)n_elems;
   } else if (pos2 < card_2) {
       const size_t n_elems = card_2 - pos2;
       memcpy(out + pos_out, array_2 + pos2, n_elems * sizeof(uint16_t));
-      pos_out += n_elems;
+      pos_out += (int32_t)n_elems;
   }
   return pos_out;
 }
@@ -2150,7 +2150,7 @@ size_t bitset_extract_setbits_avx2(uint64_t *array, size_t length,
     for (; (i < length) && (out < safeout); ++i) {
         uint64_t w = array[i];
         while ((w != 0) && (out < safeout)) {
-            uint64_t t = w & -w;
+            uint64_t t = w & (~w + 1);
             int r = __builtin_ctzll(w);
             uint32_t val = r + base;
             memcpy(out, &val, sizeof(uint32_t)); // should be compiled as a MOV on x64
@@ -2170,7 +2170,7 @@ size_t bitset_extract_setbits(uint64_t *bitset, size_t length, void *vout,
     for (size_t i = 0; i < length; ++i) {
         uint64_t w = bitset[i];
         while (w != 0) {
-            uint64_t t = w & -w;
+            uint64_t t = w & (~w + 1);
             int r = __builtin_ctzll(w);
             uint32_t val = r + base;
             memcpy(out + outpos, &val, sizeof(uint32_t)); // should be compiled as a MOV on x64
@@ -2190,7 +2190,7 @@ size_t bitset_extract_intersection_setbits_uint16(const uint64_t *bitset1,
     for (size_t i = 0; i < length; ++i) {
         uint64_t w = bitset1[i] & bitset2[i];
         while (w != 0) {
-            uint64_t t = w & -w;
+            uint64_t t = w & (~w + 1);
             int r = __builtin_ctzll(w);
             out[outpos++] = r + base;
             w ^= t;
@@ -2280,7 +2280,7 @@ size_t bitset_extract_setbits_uint16(const uint64_t *bitset, size_t length,
     for (size_t i = 0; i < length; ++i) {
         uint64_t w = bitset[i];
         while (w != 0) {
-            uint64_t t = w & -w;
+            uint64_t t = w & (~w + 1);
             int r = __builtin_ctzll(w);
             out[outpos++] = r + base;
             w ^= t;
@@ -2652,11 +2652,13 @@ void array_container_union(const array_container_t *array_1,
 #else
     // compute union with smallest array first
     if (card_1 < card_2) {
-        out->cardinality = union_uint16(array_1->array, card_1, array_2->array,
-                                        card_2, out->array);
+        out->cardinality = (int32_t)union_uint16(array_1->array, card_1,
+                                                 array_2->array, (size_t)card_2,
+                                                 out->array);
     } else {
-        out->cardinality = union_uint16(array_2->array, card_2, array_1->array,
-                                        card_1, out->array);
+        out->cardinality = (int32_t)union_uint16(array_2->array, card_2,
+                                                 array_1->array, (size_t)card_1,
+                                                 out->array);
     }
 #endif
 }
@@ -3017,13 +3019,13 @@ void bitset_container_add_from_range(bitset_container_t *bitset, uint32_t min,
         if (firstword == endword) {
             bitset->array[firstword] |=
                 mask & (((~UINT64_C(0)) << (min % 64)) &
-                        ((~UINT64_C(0)) >> ((-max) % 64)));
+                        ((~UINT64_C(0)) >> ((~max + 1) % 64)));
             return;
         }
         bitset->array[firstword] = mask & ((~UINT64_C(0)) << (min % 64));
         for (uint32_t i = firstword + 1; i < endword; i++)
             bitset->array[i] = mask;
-        bitset->array[endword] = mask & ((~UINT64_C(0)) >> ((-max) % 64));
+        bitset->array[endword] = mask & ((~UINT64_C(0)) >> ((~max + 1) % 64));
     } else {
         for (uint32_t value = min; value < max; value += step) {
             bitset_container_add(bitset, value);
@@ -3265,7 +3267,7 @@ void bitset_container_printf(const bitset_container_t * v) {
 	for (int i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; ++i) {
 		uint64_t w = v->array[i];
 		while (w != 0) {
-			uint64_t t = w & -w;
+			uint64_t t = w & (~w + 1);
 			int r = __builtin_ctzll(w);
 			if(iamfirst) {// predicted to be false
 				printf("%u",base + r);
@@ -3289,7 +3291,7 @@ void bitset_container_printf_as_uint32_array(const bitset_container_t * v, uint3
 	for (int i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; ++i) {
 		uint64_t w = v->array[i];
 		while (w != 0) {
-			uint64_t t = w & -w;
+			uint64_t t = w & (~w + 1);
 			int r = __builtin_ctzll(w);
 			if(iamfirst) {// predicted to be false
 				printf("%u", r + base);
@@ -3374,7 +3376,7 @@ bool bitset_container_iterate(const bitset_container_t *cont, uint32_t base, roa
   for (int32_t i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; ++i ) {
     uint64_t w = cont->array[i];
     while (w != 0) {
-      uint64_t t = w & -w;
+      uint64_t t = w & (~w + 1);
       int r = __builtin_ctzll(w);
       if(!iterator(r + base, ptr)) return false;
       w ^= t;
@@ -3388,7 +3390,7 @@ bool bitset_container_iterate64(const bitset_container_t *cont, uint32_t base, r
   for (int32_t i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; ++i ) {
     uint64_t w = cont->array[i];
     while (w != 0) {
-      uint64_t t = w & -w;
+      uint64_t t = w & (~w + 1);
       int r = __builtin_ctzll(w);
       if(!iterator(high_bits | (uint64_t)(r + base), ptr)) return false;
       w ^= t;
@@ -3442,7 +3444,7 @@ bool bitset_container_select(const bitset_container_t *container, uint32_t *star
             uint64_t w = container->array[i];
             uint16_t base = i*64;
             while (w != 0) {
-                uint64_t t = w & -w;
+                uint64_t t = w & (~w + 1);
                 int r = __builtin_ctzll(w);
                 if(*start_rank == rank) {
                     *element = r+base;
@@ -4038,11 +4040,11 @@ void *convert_run_optimize(void *c, uint8_t typecode_original,
             uint64_t cur_word_with_1s = cur_word | (cur_word - 1);
 
             int run_end = 0;
-            while (cur_word_with_1s == UINT64_C(-1) &&
+            while (cur_word_with_1s == UINT64_C(0xFFFFFFFFFFFFFFFF) &&
                    long_ctr < BITSET_CONTAINER_SIZE_IN_WORDS - 1)
                 cur_word_with_1s = c_qua_bitset->array[++long_ctr];
 
-            if (cur_word_with_1s == UINT64_C(-1)) {
+            if (cur_word_with_1s == UINT64_C(0xFFFFFFFFFFFFFFFF)) {
                 run_end = 64 + long_ctr * 64;  // exclusive, I guess
                 add_run(answer, run_start, run_end - 1);
                 bitset_container_free(c_qua_bitset);
@@ -4109,8 +4111,9 @@ bool bitset_array_container_andnot(const bitset_container_t *src_1,
     // Java did this directly, but we have option of asm or avx
     bitset_container_t *result = bitset_container_create();
     bitset_container_copy(src_1, result);
-    result->cardinality = bitset_clear_list(result->array, result->cardinality,
-                                            src_2->array, src_2->cardinality);
+    result->cardinality = (int32_t)bitset_clear_list(result->array,
+        (uint64_t)result->cardinality, src_2->array,
+        (uint64_t)src_2->cardinality);
 
     // do required type conversions.
     if (result->cardinality <= DEFAULT_MAX_SIZE) {
@@ -4133,8 +4136,9 @@ bool bitset_array_container_iandnot(bitset_container_t *src_1,
                                     const array_container_t *src_2,
                                     void **dst) {
     *dst = src_1;
-    src_1->cardinality = bitset_clear_list(src_1->array, src_1->cardinality,
-                                           src_2->array, src_2->cardinality);
+    src_1->cardinality = (int32_t)bitset_clear_list(src_1->array,
+        (uint64_t)src_1->cardinality, src_2->array,
+        (uint64_t)src_2->cardinality);
 
     if (src_1->cardinality <= DEFAULT_MAX_SIZE) {
         *dst = array_container_from_bitset(src_1);
@@ -4575,7 +4579,7 @@ bool array_container_equal_bitset(array_container_t* container1,
     for (int32_t i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; ++i) {
         uint64_t w = container2->array[i];
         while (w != 0) {
-            uint64_t t = w & -w;
+            uint64_t t = w & (~w + 1);
             uint16_t r = i * 64 + __builtin_ctzll(w);
             if (pos >= container1->cardinality) {
                 return false;
@@ -4873,8 +4877,8 @@ void array_container_negation(const array_container_t *src,
     uint64_t card = UINT64_C(1 << 16);
     bitset_container_set_all(dst);
 
-    dst->cardinality =
-        bitset_clear_list(dst->array, card, src->array, src->cardinality);
+    dst->cardinality = (int32_t)bitset_clear_list(dst->array, card, src->array,
+                                                  (uint64_t)src->cardinality);
 }
 
 /* Negation across the entire range of the container
@@ -5277,7 +5281,7 @@ bool bitset_container_is_subset_run(bitset_container_t* container1,
         while (w != 0 && i_run < container2->n_runs) {
             uint32_t start = container2->runs[i_run].value;
             uint32_t stop = start+container2->runs[i_run].length;
-            uint64_t t = w & -w;
+            uint64_t t = w & (~w + 1);
             uint16_t r = i_bitset * 64 + __builtin_ctzll(w);
             if (r < start) {
                 return false;
@@ -5324,7 +5328,7 @@ void array_bitset_container_union(const array_container_t *src_1,
                                   const bitset_container_t *src_2,
                                   bitset_container_t *dst) {
     if (src_2 != dst) bitset_container_copy(src_2, dst);
-    dst->cardinality = bitset_set_list_withcard(
+    dst->cardinality = (int32_t)bitset_set_list_withcard(
         dst->array, dst->cardinality, src_1->array, src_1->cardinality);
 }
 
@@ -5474,7 +5478,7 @@ bool array_array_container_union(const array_container_t *src_1,
     if (*dst != NULL) {
         bitset_container_t *ourbitset = (bitset_container_t *)*dst;
         bitset_set_list(ourbitset->array, src_1->array, src_1->cardinality);
-        ourbitset->cardinality =
+        ourbitset->cardinality = (int32_t)
             bitset_set_list_withcard(ourbitset->array, src_1->cardinality,
                                      src_2->array, src_2->cardinality);
         if (ourbitset->cardinality <= DEFAULT_MAX_SIZE) {
@@ -5524,7 +5528,7 @@ bool array_bitset_container_xor(const array_container_t *src_1,
                                 const bitset_container_t *src_2, void **dst) {
     bitset_container_t *result = bitset_container_create();
     bitset_container_copy(src_2, result);
-    result->cardinality = bitset_flip_list_withcard(
+    result->cardinality = (int32_t)bitset_flip_list_withcard(
         result->array, result->cardinality, src_1->array, src_1->cardinality);
 
     // do required type conversions.
@@ -5705,7 +5709,7 @@ bool array_array_container_xor(const array_container_t *src_1,
     *dst = bitset_container_from_array(src_1);
     bool returnval = true;  // expect a bitset
     bitset_container_t *ourbitset = (bitset_container_t *)*dst;
-    ourbitset->cardinality = bitset_flip_list_withcard(
+    ourbitset->cardinality = (uint32_t)bitset_flip_list_withcard(
         ourbitset->array, src_1->cardinality, src_2->array, src_2->cardinality);
     if (ourbitset->cardinality <= DEFAULT_MAX_SIZE) {
         // need to convert!
@@ -5767,7 +5771,7 @@ bool bitset_bitset_container_xor(const bitset_container_t *src_1,
 bool bitset_array_container_ixor(bitset_container_t *src_1,
                                  const array_container_t *src_2, void **dst) {
     *dst = src_1;
-    src_1->cardinality = bitset_flip_list_withcard(
+    src_1->cardinality = (uint32_t)bitset_flip_list_withcard(
         src_1->array, src_1->cardinality, src_2->array, src_2->cardinality);
 
     if (src_1->cardinality <= DEFAULT_MAX_SIZE) {
@@ -8571,7 +8575,7 @@ static bool realloc_array(roaring_array_t *ra, size_t new_capacity) {
 	ra->containers = newcontainers;
 	ra->keys = newkeys;
 	ra->typecodes = newtypecodes;
-	ra->allocation_size = new_capacity;
+	ra->allocation_size = (int32_t)new_capacity;
 	free(oldbigalloc);
     return true;
 }
@@ -9169,7 +9173,7 @@ static void pq_free(roaring_pq_t *pq) {
 }
 
 static void percolate_down(roaring_pq_t *pq, uint32_t i) {
-    uint32_t size = pq->size;
+    uint32_t size = (uint32_t)pq->size;
     uint32_t hsize = size >> 1;
     roaring_pq_element_t ai = pq->elements[i];
     while (i < hsize) {

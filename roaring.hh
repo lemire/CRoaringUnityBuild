@@ -1,6 +1,6 @@
-/* auto-generated on Wed 22 Feb 2017 12:23:33 EST. Do not edit! */
+/* auto-generated on Fri Mar 10 10:20:51 EST 2017. Do not edit! */
 #include "roaring.h"
-/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
 A C++ header for Roaring Bitmaps.
 */
@@ -478,7 +478,7 @@ class Roaring {
     * for constructions such as for(auto i = b.begin();
     * i!=b.end(); ++i) {}
     */
-    const_iterator end() const ;
+    const_iterator & end() const ;
 
     roaring_bitmap_t roaring;
 };
@@ -574,13 +574,14 @@ inline RoaringSetBitForwardIterator Roaring::begin() const {
       return RoaringSetBitForwardIterator(*this);
 }
 
-inline RoaringSetBitForwardIterator Roaring::end() const {
-      return RoaringSetBitForwardIterator(*this, true);
+inline RoaringSetBitForwardIterator & Roaring::end() const {
+      static RoaringSetBitForwardIterator e(*this, true);
+      return e;
 }
 
 #endif /* INCLUDE_ROARING_HH_ */
-/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
-/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
 /*
 A C++ header for 64-bit Roaring Bitmaps, implemented by way of a map of many 32-bit Roaring Bitmaps.
 */
@@ -755,11 +756,11 @@ class Roaring64Map{
      * modified.
      */
     Roaring64Map &operator&=(const Roaring64Map &r) {
-        for (const auto& map_entry : r.roarings) {
-            if (roarings.count(map_entry.first) == 1) {
-                roarings[map_entry.first] &= map_entry.second;
-                roarings[map_entry.first].setCopyOnWrite(copyOnWrite);
-            }
+        for (auto& map_entry : roarings) {
+            if (r.roarings.count(map_entry.first) == 1)
+                map_entry.second &= r.roarings.at(map_entry.first);
+            else
+                map_entry.second = Roaring();
         }
         return *this;
     }
@@ -830,7 +831,7 @@ class Roaring64Map{
             throw std::length_error("bitmap is full, cardinality is 2^64, "
                                     "unable to represent in a 64-bit integer");
         }
-        return std::accumulate(roarings.cbegin(), roarings.cend(), 0,
+        return std::accumulate(roarings.cbegin(), roarings.cend(), (uint64_t)0,
             [](uint64_t previous, const std::pair<uint32_t, Roaring>& map_entry) {
                 return previous + map_entry.second.cardinality();
             });
@@ -1043,7 +1044,7 @@ class Roaring64Map{
             if (rank < sub_cardinality) {
                 *element = ((uint64_t)map_entry.first) << 32;
                 // assuming little endian
-                return map_entry.second.select(rank, ((uint32_t*)element));
+                return map_entry.second.select((uint32_t)rank, ((uint32_t*)element));
             }
             rank -= sub_cardinality;
         }
@@ -1083,8 +1084,8 @@ class Roaring64Map{
     size_t write(char *buf, bool portable = true) const {
         const char* orig = buf;
         // push map size
-        *((uint32_t*)buf) = roarings.size();
-        buf += sizeof(uint32_t);
+        *((uint64_t*)buf) = roarings.size();
+        buf += sizeof(uint64_t);
         std::for_each(roarings.cbegin(), roarings.cend(),
             [&buf, portable](const std::pair<uint32_t, Roaring>& map_entry) {
                 // push map key
@@ -1113,9 +1114,9 @@ class Roaring64Map{
     static Roaring64Map read(const char *buf, bool portable = true) {
         Roaring64Map result;
         // get map size
-        uint32_t map_size = *((uint32_t*)buf);
-        buf += sizeof(uint32_t);
-        for (uint32_t lcv = 0; lcv < map_size; lcv++) {
+        uint64_t map_size = *((uint64_t*)buf);
+        buf += sizeof(uint64_t);
+        for (uint64_t lcv = 0; lcv < map_size; lcv++) {
             // get map key
             uint32_t key = *((uint32_t*)buf);
             buf += sizeof(uint32_t);
@@ -1304,7 +1305,7 @@ class Roaring64Map{
     * for constructions such as for(auto i = b.begin();
     * i!=b.end(); ++i) {}
     */
-    const_iterator end() const;
+    const_iterator & end() const;
 
 private:
     std::map<uint32_t, Roaring> roarings;
@@ -1408,7 +1409,7 @@ public:
     Roaring64MapSetBitForwardIterator(const Roaring64Map& parent, bool exhausted = false)
         : map_end(parent.roarings.cend())
     {
-        if(exhausted) {
+        if(exhausted || parent.roarings.empty()) {
             map_iter = parent.roarings.cend();
         } else {
             map_iter = parent.roarings.cbegin();
@@ -1424,10 +1425,7 @@ public:
 
     ~Roaring64MapSetBitForwardIterator() = default;
 
-    Roaring64MapSetBitForwardIterator(
-        const Roaring64MapSetBitForwardIterator &o)
-        : map_iter(o.map_iter), map_end(o.map_end), i(o.i) {
-    }
+    Roaring64MapSetBitForwardIterator(const Roaring64MapSetBitForwardIterator &o) = default;
 
 private:
     std::map<uint32_t, Roaring>::const_iterator map_iter;
@@ -1440,9 +1438,10 @@ inline Roaring64MapSetBitForwardIterator Roaring64Map::begin() const {
       return Roaring64MapSetBitForwardIterator(*this);
 }
 
-inline Roaring64MapSetBitForwardIterator Roaring64Map::end() const {
-      return Roaring64MapSetBitForwardIterator(*this, true);
+inline Roaring64MapSetBitForwardIterator & Roaring64Map::end() const {
+      static Roaring64MapSetBitForwardIterator e(*this, true);
+      return e;
 }
 
 #endif /* INCLUDE_ROARING_64_MAP_HH_ */
-/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
