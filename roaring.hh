@@ -1,4 +1,4 @@
-/* auto-generated on Thu Mar 23 21:26:04 EDT 2017. Do not edit! */
+/* auto-generated on Fri Mar 24 10:26:41 EDT 2017. Do not edit! */
 #include "roaring.h"
 /* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
@@ -286,6 +286,15 @@ class Roaring {
      */
     uint64_t and_cardinality(const Roaring &r) const {
         return roaring_bitmap_and_cardinality(&roaring, &r.roaring);
+    }
+
+
+    /**
+     * Check whether the two bitmaps intersect.
+     *
+     */
+    bool intersect(const Roaring &r) const {
+    	 return roaring_bitmap_intersect(&roaring, &r.roaring);
     }
 
     /**
