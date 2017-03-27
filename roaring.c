@@ -1,4 +1,4 @@
-/* auto-generated on Mon Mar 27 17:05:40 EDT 2017. Do not edit! */
+/* auto-generated on Mon 27 Mar 2017 17:54:41 EDT. Do not edit! */
 #include "roaring.h"
 /* begin file src/array_util.c */
 #include <assert.h>
