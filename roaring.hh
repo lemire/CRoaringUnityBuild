@@ -1,6 +1,6 @@
-/* auto-generated on Mon 27 Mar 2017 17:54:41 EDT. Do not edit! */
+/* auto-generated on Tue May  9 17:09:48 EDT 2017. Do not edit! */
 #include "roaring.h"
-/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
 A C++ header for Roaring Bitmaps.
 */
@@ -46,6 +46,20 @@ class Roaring {
             throw std::runtime_error("failed memory alloc in constructor");
         }
         roaring.copy_on_write = r.roaring.copy_on_write;
+    }
+
+    /**
+     * Move constructor. The moved object remains valid, i.e.
+     * all methods can still be called on it.
+     */
+    Roaring(Roaring &&r) {
+        roaring = std::move(r.roaring);
+
+        // left the moved object in a valid state
+        bool is_ok = ra_init_with_capacity(&r.roaring.high_low_container, 1);
+        if (!is_ok) {
+            throw std::runtime_error("failed memory alloc in constructor");
+        }
     }
 
     /**
@@ -133,6 +147,22 @@ class Roaring {
             throw std::runtime_error("failed memory alloc in assignment");
         }
         roaring.copy_on_write = r.roaring.copy_on_write;
+        return *this;
+    }
+
+    /**
+     * Moves the content of the provided bitmap, and
+     * discard the current content.
+     */
+    Roaring &operator=(Roaring &&r) {
+        ra_clear(&roaring.high_low_container);
+
+        roaring = std::move(r.roaring);
+        bool is_ok = ra_init_with_capacity(&r.roaring.high_low_container, 1);
+        if (!is_ok) {
+            throw std::runtime_error("failed memory alloc in assignment");
+        }
+
         return *this;
     }
 
@@ -277,8 +307,8 @@ class Roaring {
      * this function returns true and set element to the element of given rank.
      *   Otherwise, it returns false.
      */
-    bool select(uint32_t rank, uint32_t *element) const {
-        return roaring_bitmap_select(&roaring, rank, element);
+    bool select(uint32_t rnk, uint32_t *element) const {
+        return roaring_bitmap_select(&roaring, rnk, element);
     }
     /**
      * Computes the size of the intersection between two bitmaps.
@@ -366,30 +396,11 @@ class Roaring {
      * sparse bitmaps).
      */
     static Roaring read(const char *buf, bool portable = true) {
-        if (!portable) {
-            if (*(const unsigned char *)buf == SERIALIZATION_ARRAY_UINT32) {
-                /* This looks like a compressed set of uint32_t elements */
-                uint32_t card;
-                memcpy(&card, buf + 1, sizeof(uint32_t));
-                const uint32_t *elems =
-                    (const uint32_t *)(buf + 1 + sizeof(uint32_t));
-
-                return Roaring((size_t)card, elems);
-            } else if (buf[0] == SERIALIZATION_CONTAINER) {
-                buf += 1;
-            } else
-                throw std::runtime_error(
-                    "bad serialization type designator in read input");
+        roaring_bitmap_t * r = portable ? roaring_bitmap_portable_deserialize(buf) : roaring_bitmap_deserialize(buf);
+        if (r == NULL) {
+            throw std::runtime_error("failed alloc while reading");
         }
-        {
-            Roaring ans;
-            bool is_ok =
-                ra_portable_deserialize(&ans.roaring.high_low_container, buf);
-            if (!is_ok) {
-                throw std::runtime_error("failed memory alloc while reading");
-            }
-            return ans;
-        }
+        return Roaring(r);
     }
 
     /**
@@ -481,8 +492,7 @@ class Roaring {
                         ((iter_data *)inner_iter_data)->first_char;
                     ((iter_data *)inner_iter_data)->str +=
                         std::to_string(value);
-                    if (((iter_data *)inner_iter_data)->first_char == '{')
-                        ((iter_data *)inner_iter_data)->first_char = ',';
+                    ((iter_data *)inner_iter_data)->first_char = ',';
                     return true;
                 },
                 (void *)&outer_iter_data);
@@ -639,8 +649,8 @@ inline RoaringSetBitForwardIterator &Roaring::end() const {
 }
 
 #endif /* INCLUDE_ROARING_HH_ */
-/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
-/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
 /*
 A C++ header for 64-bit Roaring Bitmaps, implemented by way of a map of many
 32-bit Roaring Bitmaps.
@@ -682,7 +692,12 @@ class Roaring64Map {
     /**
      * Copy constructor
      */
-    Roaring64Map(const Roaring64Map &r) : roarings(r.roarings) {}
+    Roaring64Map(const Roaring64Map &r) = default;
+
+    /**
+     * Move constructor
+     */
+    Roaring64Map(Roaring64Map &&r) = default;
 
     /**
      * Construct a 64-bit map from a 32-bit one
@@ -804,6 +819,16 @@ class Roaring64Map {
      */
     Roaring64Map &operator=(const Roaring64Map &r) {
         roarings = r.roarings;
+        copyOnWrite = r.copyOnWrite;
+        return *this;
+    }
+
+    /**
+     * Moves the content of the provided bitmap, and
+     * discards the current content.
+     */
+    Roaring64Map &operator=(Roaring64Map &&r) {
+        roarings = std::move(r.roarings);
         copyOnWrite = r.copyOnWrite;
         return *this;
     }
@@ -1119,16 +1144,16 @@ class Roaring64Map {
        function returns true and set element to the element of given rank.
        Otherwise, it returns false.
      */
-    bool select(uint64_t rank, uint64_t *element) const {
+    bool select(uint64_t rnk, uint64_t *element) const {
         for (const auto &map_entry : roarings) {
             uint64_t sub_cardinality = (uint64_t)map_entry.second.cardinality();
-            if (rank < sub_cardinality) {
+            if (rnk < sub_cardinality) {
                 *element = ((uint64_t)map_entry.first) << 32;
                 // assuming little endian
-                return map_entry.second.select((uint32_t)rank,
+                return map_entry.second.select((uint32_t)rnk,
                                                ((uint32_t *)element));
             }
-            rank -= sub_cardinality;
+            rnk -= sub_cardinality;
         }
         return false;
     }
@@ -1300,8 +1325,7 @@ class Roaring64Map {
                                 (long long unsigned)uniteBytes(
                                     ((iter_data *)inner_iter_data)->high_bits,
                                     low_bits));
-                    if (((iter_data *)inner_iter_data)->first_char == '{')
-                        ((iter_data *)inner_iter_data)->first_char = ',';
+                    ((iter_data *)inner_iter_data)->first_char = ',';
                     return true;
                 },
                 (void *)&outer_iter_data);
@@ -1342,8 +1366,7 @@ class Roaring64Map {
                     ((iter_data *)inner_iter_data)->str += std::to_string(
                         uniteBytes(((iter_data *)inner_iter_data)->high_bits,
                                    low_bits));
-                    if (((iter_data *)inner_iter_data)->first_char == '{')
-                        ((iter_data *)inner_iter_data)->first_char = ',';
+                    ((iter_data *)inner_iter_data)->first_char = ',';
                     return true;
                 },
                 (void *)&outer_iter_data);
@@ -1543,4 +1566,4 @@ inline Roaring64MapSetBitForwardIterator Roaring64Map::end() const {
 }
 
 #endif /* INCLUDE_ROARING_64_MAP_HH_ */
-/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */

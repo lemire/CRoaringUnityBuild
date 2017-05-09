@@ -1,4 +1,4 @@
-/* auto-generated on Mon 27 Mar 2017 17:54:41 EDT. Do not edit! */
+/* auto-generated on Tue May  9 17:09:48 EDT 2017. Do not edit! */
 #include "roaring.h"
 /* begin file src/array_util.c */
 #include <assert.h>
@@ -2333,8 +2333,8 @@ size_t bitset_extract_setbits_avx2(uint64_t *array, size_t length, void *vout,
     for (; (i < length) && (out < safeout); ++i) {
         uint64_t w = array[i];
         while ((w != 0) && (out < safeout)) {
-            uint64_t t = w & (~w + 1);
-            int r = __builtin_ctzll(w);
+            uint64_t t = w & (~w + 1); // on x64, should compile to BLSI (careful: the Intel compiler seems to fail)
+            int r = __builtin_ctzll(w); // on x64, should compile to TZCNT
             uint32_t val = r + base;
             memcpy(out, &val,
                    sizeof(uint32_t));  // should be compiled as a MOV on x64
@@ -2354,8 +2354,8 @@ size_t bitset_extract_setbits(uint64_t *bitset, size_t length, void *vout,
     for (size_t i = 0; i < length; ++i) {
         uint64_t w = bitset[i];
         while (w != 0) {
-            uint64_t t = w & (~w + 1);
-            int r = __builtin_ctzll(w);
+            uint64_t t = w & (~w + 1); // on x64, should compile to BLSI (careful: the Intel compiler seems to fail)
+            int r = __builtin_ctzll(w); // on x64, should compile to TZCNT
             uint32_t val = r + base;
             memcpy(out + outpos, &val,
                    sizeof(uint32_t));  // should be compiled as a MOV on x64
@@ -2367,8 +2367,8 @@ size_t bitset_extract_setbits(uint64_t *bitset, size_t length, void *vout,
     return outpos;
 }
 
-size_t bitset_extract_intersection_setbits_uint16(const uint64_t *bitset1,
-                                                  const uint64_t *bitset2,
+size_t bitset_extract_intersection_setbits_uint16(const uint64_t * __restrict__ bitset1,
+                                                  const uint64_t * __restrict__ bitset2,
                                                   size_t length, uint16_t *out,
                                                   uint16_t base) {
     int outpos = 0;
@@ -2702,7 +2702,9 @@ array_container_t *array_container_create_given_capacity(int32_t size) {
         return NULL;
     }
 
-    if ((container->array = (uint16_t *)malloc(sizeof(uint16_t) * size)) ==
+    if( size <= 0 ) { // we don't want to rely on malloc(0)
+        container->array = NULL;
+    } else if ((container->array = (uint16_t *)malloc(sizeof(uint16_t) * size)) ==
         NULL) {
         free(container);
         return NULL;
@@ -2737,10 +2739,15 @@ int array_container_shrink_to_fit(array_container_t *src) {
     if (src->cardinality == src->capacity) return 0;  // nothing to do
     int savings = src->capacity - src->cardinality;
     src->capacity = src->cardinality;
-    uint16_t *oldarray = src->array;
-    src->array =
+    if( src->capacity == 0) { // we do not want to rely on realloc for zero allocs
+      free(src->array);
+      src->array = NULL;
+    } else {
+      uint16_t *oldarray = src->array;
+      src->array =
         (uint16_t *)realloc(oldarray, src->capacity * sizeof(uint16_t));
-    if (src->array == NULL) free(oldarray);  // should never happen?
+      if (src->array == NULL) free(oldarray);  // should never happen?
+    }
     return savings;
 }
 
@@ -3302,8 +3309,10 @@ void bitset_container_set_range(bitset_container_t *bitset, uint32_t begin,
 bool bitset_container_intersect(const bitset_container_t *src_1,
                                   const bitset_container_t *src_2) {
 	// could vectorize, but this is probably already quite fast in practice
-    for (int i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; i ++) {
-    	if((src_1->array[i] & src_2->array[i]) != 0) return true;
+    const uint64_t * __restrict__ array_1 = src_1->array;
+    const uint64_t * __restrict__ array_2 = src_2->array;
+	for (int i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; i ++) {
+        if((array_1[i] & array_2[i]) != 0) return true;
     }
     return false;
 }
@@ -3353,8 +3362,8 @@ int bitset_container_compute_cardinality(const bitset_container_t *bitset) {
 int bitset_container_##opname##_nocard(const bitset_container_t *src_1, \
                                        const bitset_container_t *src_2, \
                                        bitset_container_t *dst) {       \
-    const uint8_t *array_1 = (const uint8_t *)src_1->array;             \
-    const uint8_t *array_2 = (const uint8_t *)src_2->array;             \
+    const uint8_t * __restrict__ array_1 = (const uint8_t *)src_1->array; \
+    const uint8_t * __restrict__ array_2 = (const uint8_t *)src_2->array; \
     /* not using the blocking optimization for some reason*/            \
     uint8_t *out = (uint8_t*)dst->array;                                \
     const int innerloop = 8;                                            \
@@ -3405,8 +3414,8 @@ int bitset_container_##opname##_nocard(const bitset_container_t *src_1, \
 int bitset_container_##opname(const bitset_container_t *src_1,          \
                               const bitset_container_t *src_2,          \
                               bitset_container_t *dst) {                \
-    const __m256i *array_1 = (const __m256i *) src_1->array;            \
-    const __m256i *array_2 = (const __m256i *) src_2->array;            \
+    const __m256i * __restrict__ array_1 = (const __m256i *) src_1->array; \
+    const __m256i * __restrict__ array_2 = (const __m256i *) src_2->array; \
     __m256i *out = (__m256i *) dst->array;                              \
     dst->cardinality = avx2_harley_seal_popcount256andstore_##opname(array_2,\
     		array_1, out,BITSET_CONTAINER_SIZE_IN_WORDS / (WORDS_IN_AVX2_REG));\
@@ -3415,8 +3424,8 @@ int bitset_container_##opname(const bitset_container_t *src_1,          \
 /* next, a version that just computes the cardinality*/                 \
 int bitset_container_##opname##_justcard(const bitset_container_t *src_1, \
                               const bitset_container_t *src_2) {        \
-    const __m256i *data1 = (const __m256i *) src_1->array;            \
-    const __m256i *data2 = (const __m256i *) src_2->array;            \
+    const __m256i * __restrict__ data1 = (const __m256i *) src_1->array; \
+    const __m256i * __restrict__ data2 = (const __m256i *) src_2->array; \
     return avx2_harley_seal_popcount256_##opname(data2,                \
     		data1, BITSET_CONTAINER_SIZE_IN_WORDS / (WORDS_IN_AVX2_REG));\
 }
@@ -3429,8 +3438,8 @@ int bitset_container_##opname##_justcard(const bitset_container_t *src_1, \
 int bitset_container_##opname(const bitset_container_t *src_1,            \
                               const bitset_container_t *src_2,            \
                               bitset_container_t *dst) {                  \
-    const uint64_t *array_1 = src_1->array;                               \
-    const uint64_t *array_2 = src_2->array;                               \
+    const uint64_t * __restrict__ array_1 = src_1->array;                 \
+    const uint64_t * __restrict__ array_2 = src_2->array;                 \
     uint64_t *out = dst->array;                                           \
     int32_t sum = 0;                                                      \
     for (size_t i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; i += 2) {      \
@@ -3447,18 +3456,19 @@ int bitset_container_##opname(const bitset_container_t *src_1,            \
 int bitset_container_##opname##_nocard(const bitset_container_t *src_1,   \
                                        const bitset_container_t *src_2,   \
                                        bitset_container_t *dst) {         \
-    const uint64_t *array_1 = src_1->array, *array_2 = src_2->array;      \
+    const uint64_t * __restrict__ array_1 = src_1->array;                 \
+    const uint64_t * __restrict__ array_2 = src_2->array;                 \
     uint64_t *out = dst->array;                                           \
     for (size_t i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; i++) {         \
         out[i] = (array_1[i])opsymbol(array_2[i]);                        \
     }                                                                     \
-    dst->cardinality = BITSET_UNKNOWN_CARDINALITY;                                                \
+    dst->cardinality = BITSET_UNKNOWN_CARDINALITY;                        \
     return dst->cardinality;                                              \
 }                                                                         \
-int bitset_container_##opname##_justcard(const bitset_container_t *src_1,   \
+int bitset_container_##opname##_justcard(const bitset_container_t *src_1, \
                               const bitset_container_t *src_2) {          \
-    const uint64_t *array_1 = src_1->array;                               \
-    const uint64_t *array_2 = src_2->array;                               \
+    const uint64_t * __restrict__ array_1 = src_1->array;                 \
+    const uint64_t * __restrict__ array_2 = src_2->array;                 \
     int32_t sum = 0;                                                      \
     for (size_t i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; i += 2) {      \
         const uint64_t word_1 = (array_1[i])opsymbol(array_2[i]),         \
@@ -6298,7 +6308,9 @@ run_container_t *run_container_create_given_capacity(int32_t size) {
     if ((run = (run_container_t *)malloc(sizeof(run_container_t))) == NULL) {
         return NULL;
     }
-    if ((run->runs = (rle16_t *)malloc(sizeof(rle16_t) * size)) == NULL) {
+    if (size <= 0 ) { // we don't want to rely on malloc(0)
+        run->runs = NULL;
+    } else if ((run->runs = (rle16_t *)malloc(sizeof(rle16_t) * size)) == NULL) {
         free(run);
         return NULL;
     }
@@ -9214,11 +9226,20 @@ if (!ra->keys || !ra->containers || !ra->typecodes) {
     free(ra->typecodes);
     return false;
 }*/
+
+    if ( new_capacity == 0 ) {
+      free(ra->containers);
+      ra->containers = NULL;
+      ra->keys = NULL;
+      ra->typecodes = NULL;
+      ra->allocation_size = (int32_t)new_capacity;
+      return true;
+    }
     const size_t memoryneeded =
         new_capacity * (sizeof(uint16_t) + sizeof(void *) + sizeof(uint8_t));
     void *bigalloc = malloc(memoryneeded);
-    void *oldbigalloc = ra->containers;
     if (!bigalloc) return false;
+    void *oldbigalloc = ra->containers;
     void **newcontainers = (void **)bigalloc;
     uint16_t *newkeys = (uint16_t *)(newcontainers + new_capacity);
     uint8_t *newtypecodes = (uint8_t *)(newkeys + new_capacity);
@@ -9230,7 +9251,6 @@ if (!ra->keys || !ra->containers || !ra->typecodes) {
     ra->containers = newcontainers;
     ra->keys = newkeys;
     ra->typecodes = newtypecodes;
-    ra->allocation_size = (int32_t)new_capacity;
     free(oldbigalloc);
     return true;
 }
@@ -9242,20 +9262,24 @@ bool ra_init_with_capacity(roaring_array_t *new_ra, uint32_t cap) {
     new_ra->typecodes = NULL;
 
     new_ra->allocation_size = cap;
-    void *bigalloc =
-        malloc(cap * (sizeof(uint16_t) + sizeof(void *) + sizeof(uint8_t)));
-    new_ra->containers = (void **)bigalloc;
-    new_ra->keys = (uint16_t *)(new_ra->containers + cap);
-    new_ra->typecodes = (uint8_t *)(new_ra->keys + cap);
     new_ra->size = 0;
-
+    if(cap > 0) {
+      void *bigalloc =
+        malloc(cap * (sizeof(uint16_t) + sizeof(void *) + sizeof(uint8_t)));
+      if( bigalloc == NULL ) return false;
+      new_ra->containers = (void **)bigalloc;
+      new_ra->keys = (uint16_t *)(new_ra->containers + cap);
+      new_ra->typecodes = (uint8_t *)(new_ra->keys + cap);
+    }
     return true;
 }
 
 int ra_shrink_to_fit(roaring_array_t *ra) {
     int savings = (ra->allocation_size - ra->size) *
                   (sizeof(uint16_t) + sizeof(void *) + sizeof(uint8_t));
-    realloc_array(ra, ra->size);  // assumes it succeeds
+    if (!realloc_array(ra, ra->size)) {
+      return 0;
+    }
     ra->allocation_size = ra->size;
     return savings;
 }
