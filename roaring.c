@@ -1,4 +1,4 @@
-/* auto-generated on Tue May  9 17:09:48 EDT 2017. Do not edit! */
+/* auto-generated on Tue 16 May 2017 16:49:21 EDT. Do not edit! */
 #include "roaring.h"
 /* begin file src/array_util.c */
 #include <assert.h>
@@ -4851,20 +4851,20 @@ bool run_container_equals_array(const run_container_t* container1,
         return false;
     int32_t pos = 0;
     for (int i = 0; i < container1->n_runs; ++i) {
-        uint32_t run_start = container1->runs[i].value;
-        uint32_t le = container1->runs[i].length;
+        const uint32_t run_start = container1->runs[i].value;
+        const uint32_t le = container1->runs[i].length;
 
-        for (uint32_t j = run_start; j <= run_start + le; ++j) {
-            if (pos >= container2->cardinality) {
-                return false;
-            }
-            if (container2->array[pos] != j) {
-                return false;
-            }
-            ++pos;
+        if (container2->array[pos] != run_start) {
+            return false;
         }
+
+        if (container2->array[pos + le] != run_start + le) {
+            return false;
+        }
+
+        pos += le + 1;
     }
-    return (pos == container2->cardinality);
+    return true;
 }
 
 bool run_container_equals_bitset(const run_container_t* container1,
@@ -7418,6 +7418,10 @@ void roaring_bitmap_free(roaring_bitmap_t *r) {
     free(r);
 }
 
+void roaring_bitmap_clear(roaring_bitmap_t *r) {
+  ra_reset(&r->high_low_container);
+}
+
 void roaring_bitmap_add(roaring_bitmap_t *r, uint32_t val) {
     const uint16_t hb = val >> 16;
     const int i = ra_get_index(&r->high_low_container, hb);
@@ -8006,9 +8010,7 @@ void roaring_bitmap_andnot_inplace(roaring_bitmap_t *x1,
     if (0 == length2) return;
 
     if (0 == length1) {
-        roaring_bitmap_t *empty_bitmap = roaring_bitmap_create();
-        roaring_bitmap_overwrite(x1, empty_bitmap);
-        roaring_bitmap_free(empty_bitmap);
+        roaring_bitmap_clear(x1);
         return;
     }
 
@@ -8666,15 +8668,15 @@ roaring_bitmap_t *roaring_bitmap_lazy_or(const roaring_bitmap_t *x1,
     uint8_t container_result_type = 0;
     const int length1 = x1->high_low_container.size,
               length2 = x2->high_low_container.size;
-    roaring_bitmap_t *answer =
-        roaring_bitmap_create_with_capacity(length1 + length2);
-    answer->copy_on_write = x1->copy_on_write && x2->copy_on_write;
     if (0 == length1) {
         return roaring_bitmap_copy(x2);
     }
     if (0 == length2) {
         return roaring_bitmap_copy(x1);
     }
+    roaring_bitmap_t *answer =
+        roaring_bitmap_create_with_capacity(length1 + length2);
+    answer->copy_on_write = x1->copy_on_write && x2->copy_on_write;
     int pos1 = 0, pos2 = 0;
     uint8_t container_type_1, container_type_2;
     uint16_t s1 = ra_get_key_at_index(&x1->high_low_container, pos1);
@@ -8850,16 +8852,15 @@ roaring_bitmap_t *roaring_bitmap_lazy_xor(const roaring_bitmap_t *x1,
     uint8_t container_result_type = 0;
     const int length1 = x1->high_low_container.size,
               length2 = x2->high_low_container.size;
-    roaring_bitmap_t *answer =
-        roaring_bitmap_create_with_capacity(length1 + length2);
-    answer->copy_on_write = x1->copy_on_write && x2->copy_on_write;
     if (0 == length1) {
         return roaring_bitmap_copy(x2);
     }
     if (0 == length2) {
         return roaring_bitmap_copy(x1);
     }
-
+    roaring_bitmap_t *answer =
+        roaring_bitmap_create_with_capacity(length1 + length2);
+    answer->copy_on_write = x1->copy_on_write && x2->copy_on_write;
     int pos1 = 0, pos2 = 0;
     uint8_t container_type_1, container_type_2;
     uint16_t s1 = ra_get_key_at_index(&x1->high_low_container, pos1);
@@ -9232,7 +9233,7 @@ if (!ra->keys || !ra->containers || !ra->typecodes) {
       ra->containers = NULL;
       ra->keys = NULL;
       ra->typecodes = NULL;
-      ra->allocation_size = (int32_t)new_capacity;
+      ra->allocation_size = 0;
       return true;
     }
     const size_t memoryneeded =
@@ -9366,6 +9367,12 @@ void ra_clear_containers(roaring_array_t *ra) {
     for (int32_t i = 0; i < ra->size; ++i) {
         container_free(ra->containers[i], ra->typecodes[i]);
     }
+}
+
+void ra_reset(roaring_array_t *ra) {
+  ra_clear_containers(ra);
+  ra->size = 0;
+  ra_shrink_to_fit(ra);
 }
 
 void ra_clear_without_containers(roaring_array_t *ra) {
@@ -9906,7 +9913,6 @@ static roaring_pq_element_t pq_poll(roaring_pq_t *pq) {
 static roaring_bitmap_t *lazy_or_from_lazy_inputs(roaring_bitmap_t *x1,
                                                   roaring_bitmap_t *x2) {
     uint8_t container_result_type = 0;
-    roaring_bitmap_t *answer = roaring_bitmap_create();
     const int length1 = ra_get_size(&x1->high_low_container),
               length2 = ra_get_size(&x2->high_low_container);
     if (0 == length1) {
@@ -9917,6 +9923,8 @@ static roaring_bitmap_t *lazy_or_from_lazy_inputs(roaring_bitmap_t *x1,
         roaring_bitmap_free(x2);
         return x1;
     }
+    uint32_t neededcap = length1 > length2 ? length2 : length1;
+    roaring_bitmap_t *answer = roaring_bitmap_create_with_capacity(neededcap);
     int pos1 = 0, pos2 = 0;
     uint8_t container_type_1, container_type_2;
     uint16_t s1 = ra_get_key_at_index(&x1->high_low_container, pos1);
@@ -10019,9 +10027,12 @@ roaring_bitmap_t *roaring_bitmap_or_many_heap(uint32_t number,
         if (x1.is_temporary && x2.is_temporary) {
             roaring_bitmap_t *newb =
                 lazy_or_from_lazy_inputs(x1.bitmap, x2.bitmap);
+            // should normally return a fresh new bitmap *except* that
+            // it can return x1.bitmap or x2.bitmap in degenerate cases
+            bool temporary = !((newb == x1.bitmap) && (newb == x2.bitmap));
             uint64_t bsize = roaring_bitmap_portable_size_in_bytes(newb);
             roaring_pq_element_t newelement = {
-                .size = bsize, .is_temporary = true, .bitmap = newb};
+                .size = bsize, .is_temporary = temporary, .bitmap = newb};
             pq_add(pq, &newelement);
         } else if (x2.is_temporary) {
             roaring_bitmap_lazy_or_inplace(x2.bitmap, x1.bitmap, false);
