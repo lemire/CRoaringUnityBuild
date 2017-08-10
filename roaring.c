@@ -1,4 +1,4 @@
-/* auto-generated on Tue 16 May 2017 16:49:21 EDT. Do not edit! */
+/* auto-generated on Wed Aug  9 21:48:37 EDT 2017. Do not edit! */
 #include "roaring.h"
 /* begin file src/array_util.c */
 #include <assert.h>
@@ -1767,7 +1767,8 @@ static uint8_t lengthTable[256] = {
 #endif
 
 #ifdef USEAVX
-static uint32_t vecDecodeTable[256][8] ALIGNED(32) = {
+ALIGNED(32)
+static uint32_t vecDecodeTable[256][8] = {
     {0, 0, 0, 0, 0, 0, 0, 0}, /* 0x00 (00000000) */
     {1, 0, 0, 0, 0, 0, 0, 0}, /* 0x01 (00000001) */
     {2, 0, 0, 0, 0, 0, 0, 0}, /* 0x02 (00000010) */
@@ -3218,7 +3219,7 @@ void bitset_container_set_all(bitset_container_t *bitset) {
 /* Create a new bitset. Return NULL in case of failure. */
 bitset_container_t *bitset_container_create(void) {
     bitset_container_t *bitset =
-        (bitset_container_t *)calloc(1, sizeof(bitset_container_t));
+        (bitset_container_t *)malloc(sizeof(bitset_container_t));
 
     if (!bitset) {
         return NULL;
@@ -3280,7 +3281,7 @@ void bitset_container_free(bitset_container_t *bitset) {
 /* duplicate container. */
 bitset_container_t *bitset_container_clone(const bitset_container_t *src) {
     bitset_container_t *bitset =
-        (bitset_container_t *)calloc(1, sizeof(bitset_container_t));
+        (bitset_container_t *)malloc(sizeof(bitset_container_t));
 
     if (!bitset) {
         return NULL;
