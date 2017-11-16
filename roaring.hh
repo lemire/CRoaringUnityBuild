@@ -1,6 +1,6 @@
-/* auto-generated on Wed Sep 20 20:29:00 EDT 2017. Do not edit! */
+/* auto-generated on Thu 16 Nov 2017 08:21:50 EST. Do not edit! */
 #include "roaring.h"
-/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
 A C++ header for Roaring Bitmaps.
 */
@@ -387,13 +387,14 @@ class Roaring {
 
     /**
      * read a bitmap from a serialized version. This is meant to be compatible
-     * with
-     * the
-     * Java and Go versions.
+     * with the Java and Go versions.
      *
      * Setting the portable flag to false enable a custom format that
      * can save space compared to the portable format (e.g., for very
      * sparse bitmaps).
+     *
+     * This function is unsafe in the sense that if you provide bad data,
+     * many, many bytes could be read. See also readSafe.
      */
     static Roaring read(const char *buf, bool portable = true) {
         roaring_bitmap_t * r = portable ? roaring_bitmap_portable_deserialize(buf) : roaring_bitmap_deserialize(buf);
@@ -402,7 +403,18 @@ class Roaring {
         }
         return Roaring(r);
     }
-
+    /**
+     * read a bitmap from a serialized version, reading no more than maxbytes bytes.
+     * This is meant to be compatible with the Java and Go versions.
+     *
+     */
+    static Roaring readSafe(const char *buf, size_t maxbytes) {
+        roaring_bitmap_t * r = roaring_bitmap_portable_deserialize_safe(buf,maxbytes);
+        if (r == NULL) {
+            throw std::runtime_error("failed alloc while reading");
+        }
+        return Roaring(r);
+    }
     /**
      * How many bytes are required to serialize this bitmap (meant to be
      * compatible
@@ -649,8 +661,8 @@ inline RoaringSetBitForwardIterator &Roaring::end() const {
 }
 
 #endif /* INCLUDE_ROARING_HH_ */
-/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
-/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
 /*
 A C++ header for 64-bit Roaring Bitmaps, implemented by way of a map of many
 32-bit Roaring Bitmaps.
@@ -1219,6 +1231,9 @@ class Roaring64Map {
      * Setting the portable flag to false enable a custom format that
      * can save space compared to the portable format (e.g., for very
      * sparse bitmaps).
+     *
+     * This function is unsafe in the sense that if you provide bad data,
+     * many bytes could be read, possibly causing a buffer overflow. See also readSafe.
      */
     static Roaring64Map read(const char *buf, bool portable = true) {
         Roaring64Map result;
@@ -1236,6 +1251,40 @@ class Roaring64Map {
             result.emplaceOrInsert(key, read);
             // forward buffer past the last Roaring Bitmap
             buf += read.getSizeInBytes(portable);
+        }
+        return result;
+    }
+
+    /**
+     * read a bitmap from a serialized version, reading no more than maxbytes bytes.
+     * This is meant to be compatible with the Java and Go versions.
+     *
+     * Setting the portable flag to false enable a custom format that
+     * can save space compared to the portable format (e.g., for very
+     * sparse bitmaps).
+     */
+    static Roaring64Map readSafe(const char *buf, size_t maxbytes) {
+        Roaring64Map result;
+        // get map size
+        uint64_t map_size = *((uint64_t *)buf);
+        buf += sizeof(uint64_t);
+        for (uint64_t lcv = 0; lcv < map_size; lcv++) {
+            // get map key
+            if(maxbytes < sizeof(uint32_t)) {
+                throw std::runtime_error("ran out of bytes");
+            }
+            uint32_t key;
+            memcpy(&key, buf, sizeof(uint32_t));  // this is undefined: uint32_t
+                                                  // key = *((uint32_t*)buf);
+            buf += sizeof(uint32_t);
+            maxbytes -= sizeof(uint32_t);
+            // read map value Roaring
+            Roaring read = Roaring::readSafe(buf, maxbytes);
+            result.emplaceOrInsert(key, read);
+            // forward buffer past the last Roaring Bitmap
+            size_t tz = read.getSizeInBytes(true);
+            buf += tz;
+            maxbytes -= tz;
         }
         return result;
     }
@@ -1566,4 +1615,4 @@ inline Roaring64MapSetBitForwardIterator Roaring64Map::end() const {
 }
 
 #endif /* INCLUDE_ROARING_64_MAP_HH_ */
-/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
