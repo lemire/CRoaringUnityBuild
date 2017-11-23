@@ -1,4 +1,4 @@
-/* auto-generated on Thu 16 Nov 2017 08:21:50 EST. Do not edit! */
+/* auto-generated on Thu 23 Nov 2017 08:08:31 EST. Do not edit! */
 #include "roaring.h"
 /* begin file src/array_util.c */
 #include <assert.h>
@@ -10013,7 +10013,6 @@ bool ra_portable_deserialize(roaring_array_t *answer, const char *buf, const siz
     }
     buf += size * 2 * sizeof(uint16_t);
 
-    printf("size = %d \n", size);
     bool is_ok = ra_init_with_capacity(answer, size);
     if (!is_ok) {
         fprintf(stderr, "Failed to allocate memory for roaring array. Bailing out.\n");
