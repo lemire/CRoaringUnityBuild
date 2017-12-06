@@ -1,4 +1,4 @@
-/* auto-generated on Thu 23 Nov 2017 08:08:31 EST. Do not edit! */
+/* auto-generated on Wed Dec  6 15:22:31 EST 2017. Do not edit! */
 #include "roaring.h"
 /* begin file src/array_util.c */
 #include <assert.h>
@@ -9939,8 +9939,7 @@ size_t ra_portable_deserialize_size(const char *buf, const size_t maxbytes) {
             bytestotal += containersize;
             if(bytestotal > maxbytes) return 0;
             buf += containersize;
-        } else if (bitmapOfRunContainers != NULL &&
-                   ((bitmapOfRunContainers[k / 8] & (1 << (k % 8))) != 0)) {
+        } else if (isrun) {
             bytestotal += sizeof(uint16_t);
             if(bytestotal > maxbytes) return 0;
             uint16_t n_runs;

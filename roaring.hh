@@ -1,6 +1,6 @@
-/* auto-generated on Thu 23 Nov 2017 08:08:31 EST. Do not edit! */
+/* auto-generated on Wed Dec  6 15:22:31 EST 2017. Do not edit! */
 #include "roaring.h"
-/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
 A C++ header for Roaring Bitmaps.
 */
@@ -661,8 +661,8 @@ inline RoaringSetBitForwardIterator &Roaring::end() const {
 }
 
 #endif /* INCLUDE_ROARING_HH_ */
-/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
-/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
 /*
 A C++ header for 64-bit Roaring Bitmaps, implemented by way of a map of many
 32-bit Roaring Bitmaps.
@@ -790,7 +790,9 @@ class Roaring64Map {
                                   roaring_iter->second.maximum());
             }
         }
-        return std::numeric_limits<uint64_t>::min();
+        // we put std::numeric_limits<>::max/min in parenthesis
+        // to avoid a clash with the Windows.h header under Windows
+        return (std::numeric_limits<uint64_t>::min)();
     }
 
     /**
@@ -805,7 +807,9 @@ class Roaring64Map {
                                   roaring_iter->second.minimum());
             }
         }
-        return std::numeric_limits<uint64_t>::max();
+        // we put std::numeric_limits<>::max/min in parenthesis
+        // to avoid a clash with the Windows.h header under Windows
+        return (std::numeric_limits<uint64_t>::max)();
     }
 
     /**
@@ -950,16 +954,19 @@ class Roaring64Map {
     */
     bool isFull() const {
         // only bother to check if map is fully saturated
+        //
+        // we put std::numeric_limits<>::max/min in parenthesis
+        // to avoid a clash with the Windows.h header under Windows
         return roarings.size() ==
-                       ((size_t)std::numeric_limits<uint32_t>::max()) + 1
+                       ((size_t)(std::numeric_limits<uint32_t>::max)()) + 1
                    ? std::all_of(
                          roarings.cbegin(), roarings.cend(),
-                         [](const std::pair<uint32_t, Roaring> &map_entry) {
+                         [](const std::pair<uint32_t, Roaring> &roaring_map_entry) {
                              // roarings within map are saturated if cardinality
                              // is uint32_t max + 1
-                             return map_entry.second.cardinality() ==
+                             return roaring_map_entry.second.cardinality() ==
                                     ((uint64_t)
-                                         std::numeric_limits<uint32_t>::max()) +
+                                         (std::numeric_limits<uint32_t>::max)()) +
                                         1;
                          })
                    : false;
@@ -1071,17 +1078,19 @@ class Roaring64Map {
             roarings[start_high].flip(start_low, end_low);
             return;
         }
+        // we put std::numeric_limits<>::max/min in parenthesis
+        // to avoid a clash with the Windows.h header under Windows
         roarings[start_high].flip(start_low,
-                                  std::numeric_limits<uint32_t>::max());
+                                  (std::numeric_limits<uint32_t>::max)());
         roarings[start_high++].setCopyOnWrite(copyOnWrite);
 
         for (; start_high <= highBytes(range_end) - 1; ++start_high) {
-            roarings[start_high].flip(std::numeric_limits<uint32_t>::min(),
-                                      std::numeric_limits<uint32_t>::max());
+            roarings[start_high].flip((std::numeric_limits<uint32_t>::min)(),
+                                      (std::numeric_limits<uint32_t>::max)());
             roarings[start_high].setCopyOnWrite(copyOnWrite);
         }
 
-        roarings[start_high].flip(std::numeric_limits<uint32_t>::min(),
+        roarings[start_high].flip((std::numeric_limits<uint32_t>::min)(),
                                   end_low);
         roarings[start_high].setCopyOnWrite(copyOnWrite);
     }
@@ -1615,4 +1624,4 @@ inline Roaring64MapSetBitForwardIterator Roaring64Map::end() const {
 }
 
 #endif /* INCLUDE_ROARING_64_MAP_HH_ */
-/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
