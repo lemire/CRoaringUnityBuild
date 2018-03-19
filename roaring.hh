@@ -1,4 +1,4 @@
-/* auto-generated on Wed Dec  6 15:22:31 EST 2017. Do not edit! */
+/* auto-generated on Mon Mar 19 17:00:19 EDT 2018. Do not edit! */
 #include "roaring.h"
 /* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
@@ -35,6 +35,7 @@ class Roaring {
     Roaring(size_t n, const uint32_t *data) : Roaring() {
         roaring_bitmap_add_many(&roaring, n, data);
     }
+
     /**
      * Copy constructor
      */
@@ -290,13 +291,12 @@ class Roaring {
     size_t shrinkToFit() { return roaring_bitmap_shrink_to_fit(&roaring); }
 
     /**
-     * Iterate over the bitmap elements. The function iterator is called once
-     * for
-     *  all the values with ptr (can be NULL) as the second parameter of each
-     * call.
+     * Iterate over the bitmap elements. The function iterator is called once for
+     * all the values with ptr (can be NULL) as the second parameter of each call.
      *
-     *  roaring_iterator is simply a pointer to a function that returns void,
-     *  and takes (uint32_t,void*) as inputs.
+     * roaring_iterator is simply a pointer to a function that returns bool
+     * (true means that the iteration should continue while false means that it
+     * should stop), and takes (uint32_t,void*) as inputs.
      */
     void iterate(roaring_iterator iterator, void *ptr) const {
         roaring_iterate(&roaring, iterator, ptr);
@@ -310,6 +310,7 @@ class Roaring {
     bool select(uint32_t rnk, uint32_t *element) const {
         return roaring_bitmap_select(&roaring, rnk, element);
     }
+
     /**
      * Computes the size of the intersection between two bitmaps.
      *
@@ -317,7 +318,6 @@ class Roaring {
     uint64_t and_cardinality(const Roaring &r) const {
         return roaring_bitmap_and_cardinality(&roaring, &r.roaring);
     }
-
 
     /**
      * Check whether the two bitmaps intersect.
@@ -605,6 +605,13 @@ class RoaringSetBitForwardIterator final {
         if (!i.has_value) return true;
         if (!o.i.has_value) return false;
         return i.current_value >= *o;
+    }
+
+    /**
+    * Move the iterator to the first value >= val.
+    */
+    void equalorlarger(uint32_t val) {
+      roaring_move_uint32_iterator_equalorlarger(&i,val);
     }
 
     type_of_iterator &operator++() {  // ++i, must returned inc. value
@@ -1143,12 +1150,12 @@ class Roaring64Map {
 
     /**
      * Iterate over the bitmap elements. The function iterator is called once
-     * for
-     *  all the values with ptr (can be NULL) as the second parameter of each
+     * for all the values with ptr (can be NULL) as the second parameter of each
      * call.
      *
-     *  roaring_iterator64 is simply a pointer to a function that returns void,
-     *  and takes (uint64_t,void*) as inputs.
+     * roaring_iterator is simply a pointer to a function that returns bool
+     * (true means that the iteration should continue while false means that it
+     * should stop), and takes (uint32_t,void*) as inputs.
      */
     void iterate(roaring_iterator64 iterator, void *ptr) const {
         std::for_each(roarings.begin(), roarings.cend(),

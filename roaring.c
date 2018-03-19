@@ -1,4 +1,4 @@
-/* auto-generated on Wed Dec  6 15:22:31 EST 2017. Do not edit! */
+/* auto-generated on Mon Mar 19 17:00:19 EDT 2018. Do not edit! */
 #include "roaring.h"
 /* begin file src/array_util.c */
 #include <assert.h>
@@ -2810,6 +2810,8 @@ void bitset_flip_list(void *bitset, const uint16_t *list, uint64_t length) {
 
 extern inline uint16_t array_container_minimum(const array_container_t *arr);
 extern inline uint16_t array_container_maximum(const array_container_t *arr);
+extern inline int array_container_index_equalorlarger(const array_container_t *arr, uint16_t x);
+
 extern inline int array_container_rank(const array_container_t *arr,
                                        uint16_t x);
 extern inline bool array_container_contains(const array_container_t *arr,
@@ -3879,6 +3881,21 @@ int bitset_container_rank(const bitset_container_t *container, uint16_t x) {
   leftoverword = leftoverword & ((UINT64_C(1) << bitsleft) - 1);
   sum += hamming(leftoverword);
   return sum;
+}
+
+/* Returns the index of the first value equal or larger than x, or -1 */
+int bitset_container_index_equalorlarger(const bitset_container_t *container, uint16_t x) {
+  uint32_t x32 = x;
+  uint32_t k = x32 / 64;
+  uint64_t word = container->array[k];
+  const int diff = x32 - k * 64; // in [0,64)
+  word = (word >> diff) << diff; // a mask is faster, but we don't care
+  while(word == 0) {
+    k++;
+    if(k == BITSET_CONTAINER_SIZE_IN_WORDS) return -1;
+    word = container->array[k];
+  }
+  return k * 64 + __builtin_ctzll(word);
 }
 /* end file src/containers/bitset.c */
 /* begin file src/containers/containers.c */
@@ -6373,6 +6390,7 @@ extern inline int32_t interleavedBinarySearch(const rle16_t *array,
                                               int32_t lenarray, uint16_t ikey);
 extern inline bool run_container_contains(const run_container_t *run,
                                           uint16_t pos);
+extern inline int run_container_index_equalorlarger(const run_container_t *arr, uint16_t x);
 extern bool run_container_is_full(const run_container_t *run);
 extern bool run_container_nonzero_cardinality(const run_container_t *r);
 extern void run_container_clear(run_container_t *run);
@@ -8332,10 +8350,10 @@ roaring_bitmap_t *roaring_bitmap_portable_deserialize_safe(const char *buf, size
     }
     size_t bytesread;
     bool is_ok = ra_portable_deserialize(&ans->high_low_container, buf, maxbytes, &bytesread);
-    assert(bytesread <= maxbytes);// sanity check
+    if(is_ok) assert(bytesread <= maxbytes);
     ans->copy_on_write = false;
     if (!is_ok) {
-        roaring_bitmap_free(ans);
+        free(ans);
         return NULL;
     }
     return ans;
@@ -8458,6 +8476,56 @@ static bool loadfirstvalue(roaring_uint32_iterator_t *newit) {
     return true;
 }
 
+// prerequesite: the value should be in range of the container
+static bool loadfirstvalue_largeorequal(roaring_uint32_iterator_t *newit, uint32_t val) {
+    uint16_t lb = val & 0xFFFF;
+    newit->in_container_index = 0;
+    newit->run_index = 0;
+    newit->current_value = 0;
+    // assume it is found
+    newit->has_value = true;
+    newit->container =
+        newit->parent->high_low_container.containers[newit->container_index];
+    newit->typecode =
+        newit->parent->high_low_container.typecodes[newit->container_index];
+    newit->highbits =
+        ((uint32_t)
+             newit->parent->high_low_container.keys[newit->container_index])
+        << 16;
+    newit->container =
+        container_unwrap_shared(newit->container, &(newit->typecode));
+    switch (newit->typecode) {
+        case BITSET_CONTAINER_TYPE_CODE:
+            newit->in_container_index =  bitset_container_index_equalorlarger((const bitset_container_t *)(newit->container), lb);
+            newit->current_value = newit->highbits | newit->in_container_index;
+            break;
+        case ARRAY_CONTAINER_TYPE_CODE:
+            newit->in_container_index = array_container_index_equalorlarger((const array_container_t *)(newit->container), lb);
+            newit->current_value =
+                newit->highbits |
+                ((const array_container_t *)(newit->container))->array[newit->in_container_index];
+            break;
+        case RUN_CONTAINER_TYPE_CODE:
+            newit->run_index = run_container_index_equalorlarger((const run_container_t *)(newit->container), lb);
+            if(((const run_container_t *)(newit->container))->runs[newit->run_index].value <= lb) {
+              newit->current_value = val;
+            } else {
+              newit->current_value =
+                newit->highbits |
+                (((const run_container_t *)(newit->container))->runs[newit->run_index].value);
+            }
+            newit->in_run_index =
+                (newit->highbits | (((const run_container_t *)(newit->container))->runs[newit->run_index].value)) +
+                (((const run_container_t *)(newit->container))->runs[newit->run_index].length);
+
+            break;
+        default:
+            // if this ever happens, bug!
+            assert(false);
+    }  // switch (typecode)
+    return true;
+}
+
 void roaring_init_iterator(const roaring_bitmap_t *ra,
                            roaring_uint32_iterator_t *newit) {
     newit->parent = ra;
@@ -8480,6 +8548,28 @@ roaring_uint32_iterator_t *roaring_copy_uint32_iterator(
     memcpy(newit, it, sizeof(roaring_uint32_iterator_t));
     return newit;
 }
+
+bool roaring_move_uint32_iterator_equalorlarger(roaring_uint32_iterator_t *it, uint32_t val) {
+    uint16_t hb = val >> 16;
+    const int i = ra_get_index(& it->parent->high_low_container, hb);
+    if (i >= 0) {
+      uint32_t lowvalue = container_maximum(it->parent->high_low_container.containers[i], it->parent->high_low_container.typecodes[i]);
+      uint16_t lb = val & 0xFFFF;
+      if(lowvalue < lb ) {
+        it->container_index = i+1; // will have to load first value of next container
+      } else {// the value is necessarily within the range of the container
+        it->container_index = i;
+        it->has_value = loadfirstvalue_largeorequal(it, val);
+        return it->has_value;
+      }
+    } else {
+      // there is no matching, so we are going for the next container
+      it->container_index = -i-1;
+    }
+    it->has_value = loadfirstvalue(it);
+    return it->has_value;
+}
+
 
 bool roaring_advance_uint32_iterator(roaring_uint32_iterator_t *it) {
     if (it->container_index >= it->parent->high_low_container.size) {
@@ -8546,6 +8636,7 @@ bool roaring_advance_uint32_iterator(roaring_uint32_iterator_t *it) {
     it->has_value = loadfirstvalue(it);
     return it->has_value;
 }
+
 
 void roaring_free_uint32_iterator(roaring_uint32_iterator_t *it) { free(it); }
 
@@ -8720,6 +8811,9 @@ roaring_bitmap_t *roaring_bitmap_flip(const roaring_bitmap_t *x1,
     if (range_start >= range_end) {
         return roaring_bitmap_copy(x1);
     }
+    if(range_end >= UINT64_C(0x100000000)) {
+        range_end = UINT64_C(0x100000000);
+    }
 
     roaring_bitmap_t *ans = roaring_bitmap_create();
     ans->copy_on_write = x1->copy_on_write;
@@ -8769,6 +8863,9 @@ void roaring_bitmap_flip_inplace(roaring_bitmap_t *x1, uint64_t range_start,
                                  uint64_t range_end) {
     if (range_start >= range_end) {
         return;  // empty range
+    }
+    if(range_end >= UINT64_C(0x100000000)) {
+        range_end = UINT64_C(0x100000000);
     }
 
     uint16_t hb_start = (uint16_t)(range_start >> 16);
@@ -9154,6 +9251,8 @@ void roaring_bitmap_repair_after_lazy(roaring_bitmap_t *ra) {
         ra->high_low_container.typecodes[i] = new_typecode;
     }
 }
+
+
 
 /**
 * roaring_bitmap_rank returns the number of integers that are smaller or equal
