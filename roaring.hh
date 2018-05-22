@@ -1,4 +1,4 @@
-/* auto-generated on Mon Mar 19 17:00:19 EDT 2018. Do not edit! */
+/* auto-generated on Tue May 22 11:55:29 EDT 2018. Do not edit! */
 #include "roaring.h"
 /* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
@@ -625,11 +625,11 @@ class RoaringSetBitForwardIterator final {
         return orig;
     }
 
-    bool operator==(const RoaringSetBitForwardIterator &o) {
+    bool operator==(const RoaringSetBitForwardIterator &o) const {
         return i.current_value == *o && i.has_value == o.i.has_value;
     }
 
-    bool operator!=(const RoaringSetBitForwardIterator &o) {
+    bool operator!=(const RoaringSetBitForwardIterator &o) const {
         return i.current_value != *o || i.has_value != o.i.has_value;
     }
 

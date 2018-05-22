@@ -1,5 +1,11 @@
-/* auto-generated on Mon Mar 19 17:00:19 EDT 2018. Do not edit! */
+/* auto-generated on Tue May 22 11:55:29 EDT 2018. Do not edit! */
 #include "roaring.h"
+
+/* used for http://dmalloc.com/ Dmalloc - Debug Malloc Library */
+#ifdef DMALLOC
+#include "dmalloc.h"
+#endif
+
 /* begin file src/array_util.c */
 #include <assert.h>
 #include <stdbool.h>
@@ -2883,8 +2889,10 @@ int array_container_shrink_to_fit(array_container_t *src) {
 
 /* Free memory. */
 void array_container_free(array_container_t *arr) {
-    free(arr->array);
-    arr->array = NULL;
+    if(arr->array != NULL) {// Jon Strabala reports that some tools complain otherwise
+      free(arr->array);
+      arr->array = NULL; // pedantic
+    }
     free(arr);
 }
 
@@ -2910,8 +2918,6 @@ void array_container_grow(array_container_t *container, int32_t min,
                           int32_t max, bool preserve) {
     int32_t new_capacity = clamp(grow_capacity(container->capacity), min, max);
 
-    // currently uses set max to INT32_MAX.  The next statement is not so useful
-    // then.
     // if we are within 1/16th of the max, go to max
     if (new_capacity > max - max / 16) new_capacity = max;
 
@@ -2923,11 +2929,17 @@ void array_container_grow(array_container_t *container, int32_t min,
             (uint16_t *)realloc(array, new_capacity * sizeof(uint16_t));
         if (container->array == NULL) free(array);
     } else {
-        free(array);
+        // Jon Strabala reports that some tools complain otherwise
+        if (array != NULL) {
+          free(array);
+        }
         container->array = (uint16_t *)malloc(new_capacity * sizeof(uint16_t));
     }
 
-    // TODO: handle the case where realloc fails
+    //  handle the case where realloc fails
+    if (container->array == NULL) {
+      fprintf(stderr, "could not allocate memory\n");
+    }
     assert(container->array != NULL);
 }
 
@@ -2959,8 +2971,10 @@ void array_container_union(const array_container_t *array_1,
     const int32_t card_1 = array_1->cardinality, card_2 = array_2->cardinality;
     const int32_t max_cardinality = card_1 + card_2;
 
-    if (out->capacity < max_cardinality)
-        array_container_grow(out, max_cardinality, INT32_MAX, false);
+    if (out->capacity < max_cardinality) {
+      array_container_grow(out, max_cardinality, 2 * DEFAULT_MAX_SIZE, false);
+    }
+
 #ifdef ROARING_VECTOR_OPERATIONS_ENABLED
     // compute union with smallest array first
     if (card_1 < card_2) {
@@ -2990,7 +3004,7 @@ void array_container_andnot(const array_container_t *array_1,
                             const array_container_t *array_2,
                             array_container_t *out) {
     if (out->capacity < array_1->cardinality)
-        array_container_grow(out, array_1->cardinality, INT32_MAX, false);
+        array_container_grow(out, array_1->cardinality, DEFAULT_MAX_SIZE, false);
 #ifdef ROARING_VECTOR_OPERATIONS_ENABLED
     out->cardinality =
         difference_vector16(array_1->array, array_1->cardinality,
@@ -3012,9 +3026,10 @@ void array_container_xor(const array_container_t *array_1,
                          array_container_t *out) {
     const int32_t card_1 = array_1->cardinality, card_2 = array_2->cardinality;
     const int32_t max_cardinality = card_1 + card_2;
+    if (out->capacity < max_cardinality) {
+        array_container_grow(out, max_cardinality, 2 * DEFAULT_MAX_SIZE, false);
+    }
 
-    if (out->capacity < max_cardinality)
-        array_container_grow(out, max_cardinality, INT32_MAX, false);
 #ifdef ROARING_VECTOR_OPERATIONS_ENABLED
     out->cardinality =
         xor_vector16(array_1->array, array_1->cardinality, array_2->array,
@@ -3041,10 +3056,16 @@ void array_container_intersection(const array_container_t *array1,
             min_card = minimum_int32(card_1, card_2);
     const int threshold = 64;  // subject to tuning
 #ifdef USEAVX
-    min_card += sizeof(__m128i) / sizeof(uint16_t);
+    if (out->capacity < min_card) {
+      array_container_grow(out, min_card + sizeof(__m128i) / sizeof(uint16_t),
+        DEFAULT_MAX_SIZE + sizeof(__m128i) / sizeof(uint16_t), false);
+    }
+#else
+    if (out->capacity < min_card) {
+      array_container_grow(out, min_card, DEFAULT_MAX_SIZE, false);
+    }
 #endif
-    if (out->capacity < min_card)
-        array_container_grow(out, min_card, INT32_MAX, false);
+
     if (card_1 * threshold < card_2) {
         out->cardinality = intersect_skewed_uint16(
             array1->array, card_1, array2->array, card_2, out->array);
@@ -3402,8 +3423,10 @@ void bitset_container_add_from_range(bitset_container_t *bitset, uint32_t min,
 
 /* Free memory. */
 void bitset_container_free(bitset_container_t *bitset) {
-    aligned_free(bitset->array);
-    bitset->array = NULL;
+    if(bitset->array != NULL) {// Jon Strabala reports that some tools complain otherwise
+      aligned_free(bitset->array);
+      bitset->array = NULL; // pedantic
+    }
     free(bitset);
 }
 
@@ -6490,8 +6513,10 @@ run_container_t *run_container_clone(const run_container_t *src) {
 
 /* Free memory. */
 void run_container_free(run_container_t *run) {
-    free(run->runs);
-    run->runs = NULL;  // pedantic
+    if(run->runs != NULL) {// Jon Strabala reports that some tools complain otherwise
+      free(run->runs);
+      run->runs = NULL;  // pedantic
+    }
     free(run);
 }
 
@@ -6559,10 +6584,16 @@ void run_container_grow(run_container_t *run, int32_t min, bool copy) {
             (rle16_t *)realloc(oldruns, run->capacity * sizeof(rle16_t));
         if (run->runs == NULL) free(oldruns);
     } else {
-        free(run->runs);
+        // Jon Strabala reports that some tools complain otherwise
+        if (run->runs != NULL) {
+          free(run->runs);
+        }
         run->runs = (rle16_t *)malloc(run->capacity * sizeof(rle16_t));
     }
-    // TODO: handle the case where realloc fails
+    // handle the case where realloc fails
+    if (run->runs == NULL) {
+      fprintf(stderr, "could not allocate memory\n");
+    }
     assert(run->runs != NULL);
 }
 
@@ -7413,8 +7444,11 @@ static inline uint32_t minimum_uint32(uint32_t a, uint32_t b) {
     return (a < b) ? a : b;
 }
 
-roaring_bitmap_t *roaring_bitmap_from_range(uint32_t min, uint32_t max,
+roaring_bitmap_t *roaring_bitmap_from_range(uint64_t min, uint64_t max,
                                             uint32_t step) {
+    if(max >= UINT64_C(0x100000000)) {
+        max = UINT64_C(0x100000000);
+    }
     if (step == 0) return NULL;
     if (max <= min) return NULL;
     roaring_bitmap_t *answer = roaring_bitmap_create();
@@ -8636,6 +8670,90 @@ bool roaring_advance_uint32_iterator(roaring_uint32_iterator_t *it) {
     it->has_value = loadfirstvalue(it);
     return it->has_value;
 }
+
+uint32_t roaring_read_uint32_iterator(roaring_uint32_iterator_t *it, uint32_t* buf, uint32_t count) {
+  uint32_t ret = 0;
+  uint32_t num_values;
+  uint32_t wordindex;  // used for bitsets
+  uint64_t word;       // used for bitsets
+  const array_container_t* acont; //TODO remove
+  const run_container_t* rcont; //TODO remove
+  const bitset_container_t* bcont; //TODO remove
+
+  while (it->has_value && ret < count) {
+    switch (it->typecode) {
+      case BITSET_CONTAINER_TYPE_CODE:
+        bcont = (const bitset_container_t*)(it->container);
+        wordindex = it->in_container_index / 64;
+        word = bcont->array[wordindex] & (UINT64_MAX << (it->in_container_index % 64));
+        do {
+          while (word != 0 && ret < count) {
+            buf[0] = it->highbits | (wordindex * 64 + __builtin_ctzll(word));
+            word = word & (word - 1);
+            buf++;
+            ret++;
+          }
+          while (word == 0 && wordindex+1 < BITSET_CONTAINER_SIZE_IN_WORDS) {
+            wordindex++;
+            word = bcont->array[wordindex];
+          }
+        } while (word != 0 && ret < count);
+        it->has_value = (word != 0);
+        if (it->has_value) {
+          it->in_container_index = wordindex * 64 + __builtin_ctzll(word);
+          it->current_value = it->highbits | it->in_container_index;
+        }
+        break;
+      case ARRAY_CONTAINER_TYPE_CODE:
+        acont = (const array_container_t *)(it->container);
+        num_values = minimum_uint32(acont->cardinality - it->in_container_index, count - ret);
+        for (uint32_t i = 0; i < num_values; i++) {
+          buf[i] = it->highbits | acont->array[it->in_container_index + i];
+        }
+        buf += num_values;
+        ret += num_values;
+        it->in_container_index += num_values;
+        it->has_value = (it->in_container_index < acont->cardinality);
+        if (it->has_value) {
+          it->current_value = it->highbits | acont->array[it->in_container_index];
+        }
+        break;
+      case RUN_CONTAINER_TYPE_CODE:
+        rcont = (const run_container_t*)(it->container);
+        //"in_run_index" name is misleading, read it as "max_value_in_current_run"
+        do {
+          num_values = minimum_uint32(it->in_run_index - it->current_value + 1, count - ret);
+          for (uint32_t i = 0; i < num_values; i++) {
+            buf[i] = it->current_value + i;
+          }
+          it->current_value += num_values; // this can overflow to zero: UINT32_MAX+1=0
+          buf += num_values;
+          ret += num_values;
+
+          if (it->current_value > it->in_run_index || it->current_value == 0) {
+            it->run_index++;
+            if (it->run_index < rcont->n_runs) {
+              it->current_value = it->highbits | rcont->runs[it->run_index].value;
+              it->in_run_index = it->current_value + rcont->runs[it->run_index].length;
+            } else {
+              it->has_value = false;
+            }
+          }
+        } while ((ret < count) && it->has_value);
+        break;
+      default:
+        assert(false);
+    }
+    if (it->has_value) {
+      assert(ret == count);
+      return ret;
+    }
+    it->container_index++;
+    it->has_value = loadfirstvalue(it);
+  }
+  return ret;
+}
+
 
 
 void roaring_free_uint32_iterator(roaring_uint32_iterator_t *it) { free(it); }
