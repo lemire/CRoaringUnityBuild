@@ -1,4 +1,4 @@
-/* auto-generated on Tue May 22 11:55:29 EDT 2018. Do not edit! */
+/* auto-generated on Wed May 23 19:25:15 EDT 2018. Do not edit! */
 #include "roaring.h"
 
 /* used for http://dmalloc.com/ Dmalloc - Debug Malloc Library */
@@ -1014,11 +1014,11 @@ size_t union_uint16(const uint16_t *set_1, size_t size_1, const uint16_t *set_2,
     size_t pos = 0, idx_1 = 0, idx_2 = 0;
 
     if (0 == size_2) {
-        memcpy(buffer, set_1, size_1 * sizeof(uint16_t));
+        memmove(buffer, set_1, size_1 * sizeof(uint16_t));
         return size_1;
     }
     if (0 == size_1) {
-        memcpy(buffer, set_2, size_2 * sizeof(uint16_t));
+        memmove(buffer, set_2, size_2 * sizeof(uint16_t));
         return size_2;
     }
 
@@ -1047,11 +1047,11 @@ size_t union_uint16(const uint16_t *set_1, size_t size_1, const uint16_t *set_2,
 
     if (idx_1 < size_1) {
         const size_t n_elems = size_1 - idx_1;
-        memcpy(buffer + pos, set_1 + idx_1, n_elems * sizeof(uint16_t));
+        memmove(buffer + pos, set_1 + idx_1, n_elems * sizeof(uint16_t));
         pos += n_elems;
     } else if (idx_2 < size_2) {
         const size_t n_elems = size_2 - idx_2;
-        memcpy(buffer + pos, set_2 + idx_2, n_elems * sizeof(uint16_t));
+        memmove(buffer + pos, set_2 + idx_2, n_elems * sizeof(uint16_t));
         pos += n_elems;
     }
 
@@ -1788,11 +1788,11 @@ size_t union_uint32(const uint32_t *set_1, size_t size_1, const uint32_t *set_2,
     size_t pos = 0, idx_1 = 0, idx_2 = 0;
 
     if (0 == size_2) {
-        memcpy(buffer, set_1, size_1 * sizeof(uint32_t));
+        memmove(buffer, set_1, size_1 * sizeof(uint32_t));
         return size_1;
     }
     if (0 == size_1) {
-        memcpy(buffer, set_2, size_2 * sizeof(uint32_t));
+        memmove(buffer, set_2, size_2 * sizeof(uint32_t));
         return size_2;
     }
 
@@ -1821,11 +1821,11 @@ size_t union_uint32(const uint32_t *set_1, size_t size_1, const uint32_t *set_2,
 
     if (idx_1 < size_1) {
         const size_t n_elems = size_1 - idx_1;
-        memcpy(buffer + pos, set_1 + idx_1, n_elems * sizeof(uint32_t));
+        memmove(buffer + pos, set_1 + idx_1, n_elems * sizeof(uint32_t));
         pos += n_elems;
     } else if (idx_2 < size_2) {
         const size_t n_elems = size_2 - idx_2;
-        memcpy(buffer + pos, set_2 + idx_2, n_elems * sizeof(uint32_t));
+        memmove(buffer + pos, set_2 + idx_2, n_elems * sizeof(uint32_t));
         pos += n_elems;
     }
 
@@ -1874,6 +1874,31 @@ size_t union_uint32_card(const uint32_t *set_1, size_t size_1,
         pos += n_elems;
     }
     return pos;
+}
+
+
+
+size_t fast_union_uint16(const uint16_t *set_1, size_t size_1, const uint16_t *set_2,
+                    size_t size_2, uint16_t *buffer) {
+#ifdef ROARING_VECTOR_OPERATIONS_ENABLED
+    // compute union with smallest array first
+    if (size_1 < size_2) {
+        return union_vector16(set_1, size_1,
+                                          set_2, size_2, buffer);
+    } else {
+        return union_vector16(set_2, size_2,
+                                          set_1, size_1, buffer);
+    }
+#else
+    // compute union with smallest array first
+    if (size_1 < size_2) {
+        return union_uint16(
+            set_1, size_1, set_2, size_2, buffer);
+    } else {
+        return union_uint16(
+            set_2, size_2, set_1, size_1, buffer);
+    }
+#endif
 }
 /* end file src/array_util.c */
 /* begin file src/bitset_util.c */
@@ -2974,26 +2999,9 @@ void array_container_union(const array_container_t *array_1,
     if (out->capacity < max_cardinality) {
       array_container_grow(out, max_cardinality, 2 * DEFAULT_MAX_SIZE, false);
     }
+    out->cardinality = fast_union_uint16(array_1->array, card_1,
+                                      array_2->array, card_2, out->array);
 
-#ifdef ROARING_VECTOR_OPERATIONS_ENABLED
-    // compute union with smallest array first
-    if (card_1 < card_2) {
-        out->cardinality = union_vector16(array_1->array, card_1,
-                                          array_2->array, card_2, out->array);
-    } else {
-        out->cardinality = union_vector16(array_2->array, card_2,
-                                          array_1->array, card_1, out->array);
-    }
-#else
-    // compute union with smallest array first
-    if (card_1 < card_2) {
-        out->cardinality = (int32_t)union_uint16(
-            array_1->array, card_1, array_2->array, (size_t)card_2, out->array);
-    } else {
-        out->cardinality = (int32_t)union_uint16(
-            array_2->array, card_2, array_1->array, (size_t)card_1, out->array);
-    }
-#endif
 }
 
 /* Computes the  difference of array1 and array2 and write the result
@@ -5518,6 +5526,10 @@ bool array_container_negation_range(const array_container_t *src,
     array_container_t *arr =
         array_container_create_given_capacity(new_cardinality);
     *dst = (void *)arr;
+    if(new_cardinality == 0) {
+      arr->cardinality = new_cardinality;
+      return false; // we are done.
+    }
     // copy stuff before the active area
     memcpy(arr->array, src->array, start_index * sizeof(uint16_t));
 
@@ -6017,8 +6029,11 @@ bool array_array_container_union(const array_container_t *src_1,
     int totalCardinality = src_1->cardinality + src_2->cardinality;
     if (totalCardinality <= DEFAULT_MAX_SIZE) {
         *dst = array_container_create_given_capacity(totalCardinality);
-        if (*dst != NULL)
+        if (*dst != NULL) {
             array_container_union(src_1, src_2, (array_container_t *)*dst);
+        } else {
+            return true; // otherwise failure won't be caught
+        }
         return false;  // not a bitset
     }
     *dst = bitset_container_create();
@@ -6039,15 +6054,97 @@ bool array_array_container_union(const array_container_t *src_1,
     return returnval;
 }
 
+bool array_array_container_inplace_union(array_container_t *src_1,
+                                 const array_container_t *src_2, void **dst) {
+    int totalCardinality = src_1->cardinality + src_2->cardinality;
+    *dst = NULL;
+    if (totalCardinality <= DEFAULT_MAX_SIZE) {
+        if(src_1->capacity < totalCardinality) {
+          *dst = array_container_create_given_capacity(2  * totalCardinality); // be purposefully generous
+          if (*dst != NULL) {
+              array_container_union(src_1, src_2, (array_container_t *)*dst);
+          } else {
+              return true; // otherwise failure won't be caught
+          }
+          return false;  // not a bitset
+        } else {
+          memmove(src_1->array + src_2->cardinality, src_1->array, src_1->cardinality * sizeof(uint16_t));
+          src_1->cardinality = fast_union_uint16(src_1->array + src_2->cardinality, src_1->cardinality,
+                                  src_2->array, src_2->cardinality, src_1->array);
+          return false; // not a bitset
+        }
+    }
+    *dst = bitset_container_create();
+    bool returnval = true;  // expect a bitset
+    if (*dst != NULL) {
+        bitset_container_t *ourbitset = (bitset_container_t *)*dst;
+        bitset_set_list(ourbitset->array, src_1->array, src_1->cardinality);
+        ourbitset->cardinality = (int32_t)bitset_set_list_withcard(
+            ourbitset->array, src_1->cardinality, src_2->array,
+            src_2->cardinality);
+        if (ourbitset->cardinality <= DEFAULT_MAX_SIZE) {
+            // need to convert!
+            if(src_1->capacity < ourbitset->cardinality) {
+              array_container_grow(src_1, ourbitset->cardinality, INT32_MAX, false);
+            }
+
+            bitset_extract_setbits_uint16(ourbitset->array, BITSET_CONTAINER_SIZE_IN_WORDS,
+                                  src_1->array, 0);
+            src_1->cardinality =  ourbitset->cardinality;
+            *dst = src_1;
+            bitset_container_free(ourbitset);
+            returnval = false;  // not going to be a bitset
+        }
+    }
+    return returnval;
+}
+
+
 bool array_array_container_lazy_union(const array_container_t *src_1,
                                       const array_container_t *src_2,
                                       void **dst) {
     int totalCardinality = src_1->cardinality + src_2->cardinality;
     if (totalCardinality <= ARRAY_LAZY_LOWERBOUND) {
         *dst = array_container_create_given_capacity(totalCardinality);
-        if (*dst != NULL)
+        if (*dst != NULL) {
             array_container_union(src_1, src_2, (array_container_t *)*dst);
+        } else {
+              return true; // otherwise failure won't be caught
+        }
         return false;  // not a bitset
+    }
+    *dst = bitset_container_create();
+    bool returnval = true;  // expect a bitset
+    if (*dst != NULL) {
+        bitset_container_t *ourbitset = (bitset_container_t *)*dst;
+        bitset_set_list(ourbitset->array, src_1->array, src_1->cardinality);
+        bitset_set_list(ourbitset->array, src_2->array, src_2->cardinality);
+        ourbitset->cardinality = BITSET_UNKNOWN_CARDINALITY;
+    }
+    return returnval;
+}
+
+
+bool array_array_container_lazy_inplace_union(array_container_t *src_1,
+                                      const array_container_t *src_2,
+                                      void **dst) {
+    int totalCardinality = src_1->cardinality + src_2->cardinality;
+    *dst = NULL;
+    if (totalCardinality <= ARRAY_LAZY_LOWERBOUND) {
+        if(src_1->capacity < totalCardinality) {
+          *dst = array_container_create_given_capacity(2  * totalCardinality); // be purposefully generous
+          if (*dst != NULL) {
+              array_container_union(src_1, src_2, (array_container_t *)*dst);
+          } else {
+            return true; // otherwise failure won't be caught
+          }
+          return false;  // not a bitset
+        } else {
+          memmove(src_1->array + src_2->cardinality, src_1->array, src_1->cardinality * sizeof(uint16_t));
+          src_1->cardinality = fast_union_uint16(src_1->array + src_2->cardinality, src_1->cardinality,
+                                  src_2->array, src_2->cardinality, src_1->array);
+          return false; // not a bitset
+        }
     }
     *dst = bitset_container_create();
     bool returnval = true;  // expect a bitset
