@@ -1,6 +1,6 @@
-/* auto-generated on Fri Jun 15 13:35:52 EDT 2018. Do not edit! */
+/* auto-generated on Fri 15 Jun 2018 15:22:10 EDT. Do not edit! */
 #include "roaring.h"
-/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
 A C++ header for Roaring Bitmaps.
 */
@@ -96,6 +96,13 @@ class Roaring {
      *
      */
     void add(uint32_t x) { roaring_bitmap_add(&roaring, x); }
+
+    /**
+    * add if all values from x (included) to y (excluded)
+    */
+    void addRange(const uint64_t x, const uint64_t y)  {
+        return roaring_bitmap_add_range(&roaring, x, y);
+    }
 
     /**
      * Add value n_args from pointer vals
@@ -675,8 +682,8 @@ inline RoaringSetBitForwardIterator &Roaring::end() const {
 }
 
 #endif /* INCLUDE_ROARING_HH_ */
-/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
-/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
 /*
 A C++ header for 64-bit Roaring Bitmaps, implemented by way of a map of many
 32-bit Roaring Bitmaps.
@@ -1638,4 +1645,4 @@ inline Roaring64MapSetBitForwardIterator Roaring64Map::end() const {
 }
 
 #endif /* INCLUDE_ROARING_64_MAP_HH_ */
-/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
