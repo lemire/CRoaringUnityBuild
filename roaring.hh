@@ -1,4 +1,4 @@
-/* auto-generated on Sat Jun  9 00:59:02 EDT 2018. Do not edit! */
+/* auto-generated on Fri Jun 15 13:35:52 EDT 2018. Do not edit! */
 #include "roaring.h"
 /* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
@@ -128,6 +128,13 @@ class Roaring {
      */
     bool contains(uint32_t x) const {
         return roaring_bitmap_contains(&roaring, x);
+    }
+
+    /**
+    * Check if all values from x (included) to y (excluded) are present
+    */
+    bool containsRange(const uint64_t x, const uint64_t y) const {
+        return roaring_bitmap_contains_range(&roaring, x, y);
     }
 
     /**
