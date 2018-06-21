@@ -1,6 +1,6 @@
-/* auto-generated on Mon 18 Jun 2018 21:19:29 CEST. Do not edit! */
+/* auto-generated on Thu Jun 21 09:55:37 EDT 2018. Do not edit! */
 #include "roaring.h"
-/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
 A C++ header for Roaring Bitmaps.
 */
@@ -682,8 +682,8 @@ inline RoaringSetBitForwardIterator &Roaring::end() const {
 }
 
 #endif /* INCLUDE_ROARING_HH_ */
-/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
-/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
 /*
 A C++ header for 64-bit Roaring Bitmaps, implemented by way of a map of many
 32-bit Roaring Bitmaps.
@@ -1645,4 +1645,4 @@ inline Roaring64MapSetBitForwardIterator Roaring64Map::end() const {
 }
 
 #endif /* INCLUDE_ROARING_64_MAP_HH_ */
-/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
