@@ -1,4 +1,4 @@
-/* auto-generated on Sat Jun 23 10:54:14 EDT 2018. Do not edit! */
+/* auto-generated on Mon Jul  2 15:03:35 EDT 2018. Do not edit! */
 #include "roaring.h"
 /* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
@@ -98,6 +98,14 @@ class Roaring {
     void add(uint32_t x) { roaring_bitmap_add(&roaring, x); }
 
     /**
+     * Add value x
+     * Returns true if a new value was added, false if the value was already existing.
+     */
+    bool addChecked(uint32_t x) { 
+        return roaring_bitmap_add_checked(&roaring, x);
+    }
+
+    /**
     * add if all values from x (included) to y (excluded)
     */
     void addRange(const uint64_t x, const uint64_t y)  {
@@ -117,6 +125,14 @@ class Roaring {
      *
      */
     void remove(uint32_t x) { roaring_bitmap_remove(&roaring, x); }
+
+    /**
+     * Remove value x
+     * Returns true if a new value was removed, false if the value was not existing.
+     */
+    bool removeChecked(uint32_t x) {
+        return roaring_bitmap_remove_checked(&roaring, x);
+    }
 
     /**
      * Return the largest value (if not empty)
@@ -772,6 +788,21 @@ class Roaring64Map {
     }
 
     /**
+     * Add value x
+     * Returns true if a new value was added, false if the value was already existing.
+     */
+    bool addChecked(uint32_t x) {
+        bool result = roarings[0].addChecked(x);
+        roarings[0].setCopyOnWrite(copyOnWrite);
+        return result;
+    }
+    bool addChecked(uint64_t x) {
+        bool result = roarings[highBytes(x)].addChecked(lowBytes(x));
+        roarings[highBytes(x)].setCopyOnWrite(copyOnWrite);
+        return result;
+    }
+
+    /**
      * Add value n_args from pointer vals
      *
      */
@@ -797,6 +828,20 @@ class Roaring64Map {
         auto roaring_iter = roarings.find(highBytes(x));
         if (roaring_iter != roarings.cend())
             roaring_iter->second.remove(lowBytes(x));
+    }
+
+    /**
+     * Remove value x
+     * Returns true if a new value was removed, false if the value was not existing.
+     */
+    bool removeChecked(uint32_t x) {
+        return roarings[0].removeChecked(x);
+    }
+    bool removeChecked(uint64_t x) {
+        auto roaring_iter = roarings.find(highBytes(x));
+        if (roaring_iter != roarings.cend())
+            return roaring_iter->second.removeChecked(lowBytes(x));
+        return false;
     }
 
     /**
