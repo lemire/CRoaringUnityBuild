@@ -1,4 +1,4 @@
-/* auto-generated on Mon Jul  2 15:03:35 EDT 2018. Do not edit! */
+/* auto-generated on Fri Jul  6 16:29:59 EDT 2018. Do not edit! */
 #include "roaring.h"
 /* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
@@ -1068,14 +1068,15 @@ class Roaring64Map {
      * (e.g., ans = new uint32[mybitmap.cardinality()];)
      */
     void toUint64Array(uint64_t *ans) const {
-        std::accumulate(roarings.cbegin(), roarings.cend(), ans,
-                        [](uint64_t *previous,
-                           const std::pair<uint32_t, Roaring> &map_entry) {
-                            for (uint32_t low_bits : map_entry.second)
-                                *previous++ =
-                                    uniteBytes(map_entry.first, low_bits);
-                            return previous;
-                        });
+        // Annoyingly, VS 2017 marks std::accumulate() as [[nodiscard]]
+        (void)std::accumulate(roarings.cbegin(), roarings.cend(), ans,
+                              [](uint64_t *previous,
+                                 const std::pair<uint32_t, Roaring> &map_entry) {
+                                  for (uint32_t low_bits : map_entry.second)
+                                      *previous++ =
+                                          uniteBytes(map_entry.first, low_bits);
+                                  return previous;
+                              });
     }
 
     /**

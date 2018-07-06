@@ -1,4 +1,4 @@
-/* auto-generated on Mon Jul  2 15:03:35 EDT 2018. Do not edit! */
+/* auto-generated on Fri Jul  6 16:29:59 EDT 2018. Do not edit! */
 #include "roaring.h"
 
 /* used for http://dmalloc.com/ Dmalloc - Debug Malloc Library */
@@ -7375,6 +7375,7 @@ int run_container_rank(const run_container_t *container, uint16_t x) {
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 
 extern inline bool roaring_bitmap_contains(const roaring_bitmap_t *r,
                                            uint32_t val);
@@ -7600,7 +7601,7 @@ void roaring_bitmap_add_range_closed(roaring_bitmap_t *ra, uint32_t min, uint32_
 
 void roaring_bitmap_add_range(roaring_bitmap_t *ra, uint64_t min, uint64_t max) {
   if(max == min) return;
-  roaring_bitmap_add_range_closed(ra, min, max - 1);
+  roaring_bitmap_add_range_closed(ra, (uint32_t)min, (uint32_t)(max - 1));
 }
 
 void roaring_bitmap_printf(const roaring_bitmap_t *ra) {
@@ -7625,7 +7626,7 @@ void roaring_bitmap_printf_describe(const roaring_bitmap_t *ra) {
                                          ra->high_low_container.typecodes[i]));
         if (ra->high_low_container.typecodes[i] == SHARED_CONTAINER_TYPE_CODE) {
             printf(
-                "(shared count = %u )",
+                "(shared count = %" PRIu32 " )",
                 ((shared_container_t *)(ra->high_low_container.containers[i]))
                     ->counter);
         }
@@ -9758,7 +9759,7 @@ bool roaring_bitmap_contains_range(const roaring_bitmap_t *r, uint64_t range_sta
         range_end = UINT64_C(0x100000000);
     }
     if (range_start >= range_end) return true;  // empty range are always contained!
-    if (range_end - range_start == 1) return roaring_bitmap_contains(r, range_start);
+    if (range_end - range_start == 1) return roaring_bitmap_contains(r, (uint32_t)range_start);
     uint16_t hb_rs = (uint16_t)(range_start >> 16);
     uint16_t hb_re = (uint16_t)((range_end - 1) >> 16);
     const int32_t span = hb_re - hb_rs;
@@ -9810,6 +9811,7 @@ bool roaring_bitmap_is_strict_subset(const roaring_bitmap_t *ra1,
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
 
 // Convention: [0,ra->size) all elements are initialized
@@ -9831,7 +9833,7 @@ extern inline void ra_set_container_at_index(const roaring_array_t *ra,
 
 #define INITIAL_CAPACITY 4
 
-static bool realloc_array(roaring_array_t *ra, size_t new_capacity) {
+static bool realloc_array(roaring_array_t *ra, int32_t new_capacity) {
     // because we combine the allocations, it is not possible to use realloc
     /*ra->keys =
     (uint16_t *)realloc(ra->keys, sizeof(uint16_t) * new_capacity);
@@ -10011,7 +10013,7 @@ void ra_clear(roaring_array_t *ra) {
 bool extend_array(roaring_array_t *ra, int32_t k) {
     int32_t desired_size = ra->size + k;
     if (desired_size > ra->allocation_size) {
-        size_t new_capacity =
+        int32_t new_capacity =
             (ra->size < 1024) ? 2 * desired_size : 5 * desired_size / 4;
 
         return realloc_array(ra, new_capacity);
@@ -10470,7 +10472,7 @@ bool ra_portable_deserialize(roaring_array_t *answer, const char *buf, const siz
     buf += sizeof(uint32_t);
     if ((cookie & 0xFFFF) != SERIAL_COOKIE &&
         cookie != SERIAL_COOKIE_NO_RUNCONTAINER) {
-        fprintf(stderr, "I failed to find one of the right cookies. Found %u\n",
+        fprintf(stderr, "I failed to find one of the right cookies. Found %" PRIu32 "\n",
                 cookie);
         return false;
     }
@@ -10488,7 +10490,7 @@ bool ra_portable_deserialize(roaring_array_t *answer, const char *buf, const siz
         buf += sizeof(uint32_t);
     }
     if (size > (1<<16)) {
-       fprintf(stderr, "You cannot have so many containers, the data must be corrupted: %u\n",
+       fprintf(stderr, "You cannot have so many containers, the data must be corrupted: %" PRId32 "\n",
                 size);
        return false; // logically impossible
     }
