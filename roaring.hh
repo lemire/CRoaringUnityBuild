@@ -1,4 +1,4 @@
-/* auto-generated on Fri Jul  6 16:29:59 EDT 2018. Do not edit! */
+/* auto-generated on Wed Jul 18 17:15:46 EDT 2018. Do not edit! */
 #include "roaring.h"
 /* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
@@ -1380,7 +1380,7 @@ class Roaring64Map {
         return std::accumulate(
             roarings.cbegin(), roarings.cend(),
             sizeof(uint64_t) + roarings.size() * sizeof(uint32_t),
-            [=](uint64_t previous,
+            [=](size_t previous,
                 const std::pair<uint32_t, Roaring> &map_entry) {
                 // add in bytes used by each Roaring
                 return previous + map_entry.second.getSizeInBytes(portable);
