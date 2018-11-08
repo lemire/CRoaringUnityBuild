@@ -1,6 +1,6 @@
-/* auto-generated on Wed Jul 18 17:15:46 EDT 2018. Do not edit! */
+/* auto-generated on Thu  8 Nov 2018 11:13:30 EST. Do not edit! */
 #include "roaring.h"
-/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
 A C++ header for Roaring Bitmaps.
 */
@@ -282,6 +282,13 @@ class Roaring {
     void toUint32Array(uint32_t *ans) const {
         roaring_bitmap_to_uint32_array(&roaring, ans);
     }
+    /**
+     * to int array with pagination
+     * 
+     */
+    void rangeUint32Array(uint32_t *ans, size_t offset, size_t limit) const {
+        roaring_bitmap_range_uint32_array(&roaring, offset, limit, ans);
+    }
 
     /**
      * Return true if the two bitmaps contain the same elements.
@@ -398,16 +405,47 @@ class Roaring {
     * Returns the number of integers that are smaller or equal to x.
     */
     uint64_t rank(uint32_t x) const { return roaring_bitmap_rank(&roaring, x); }
+
     /**
-     * write a bitmap to a char buffer. This is meant to be compatible with
-     * the
-     * Java and Go versions. Returns how many bytes were written which should be
-     * getSizeInBytes().
-     *
-     * Setting the portable flag to false enable a custom format that
-     * can save space compared to the portable format (e.g., for very
-     * sparse bitmaps).
-     */
+    * write a bitmap to a char buffer. This is meant to be compatible with
+    * the
+    * Java and Go versions. Returns how many bytes were written which should be
+    * getSizeInBytes().
+    *
+    * Setting the portable flag to false enable a custom format that
+    * can save space compared to the portable format (e.g., for very
+    * sparse bitmaps).
+    *
+    * Boost users can serialize bitmaps in this manner:
+    *
+    *       BOOST_SERIALIZATION_SPLIT_FREE(Roaring)
+    *       namespace boost {
+    *       namespace serialization {
+    *
+    *       template <class Archive>
+    *       void save(Archive& ar, const Roaring& bitmask, 
+    *          const unsigned int version) {
+    *         std::size_t expected_size_in_bytes = bitmask.getSizeInBytes();
+    *         std::vector<char> buffer(expected_size_in_bytes);
+    *         std::size_t       size_in_bytes = bitmask.write(buffer.data());
+    *
+    *         ar& size_in_bytes;
+    *         ar& boost::serialization::make_binary_object(buffer.data(), 
+    *             size_in_bytes);
+    *      }
+    *      template <class Archive>
+    *      void load(Archive& ar, Roaring& bitmask, 
+    *          const unsigned int version) {
+    *         std::size_t size_in_bytes = 0;
+    *         ar& size_in_bytes;
+    *         std::vector<char> buffer(size_in_bytes);
+    *         ar&  boost::serialization::make_binary_object(buffer.data(),
+    *            size_in_bytes);
+    *         bitmask = Roaring::readSafe(buffer.data(), size_in_bytes);
+    *}
+    *}  // namespace serialization
+    *}  // namespace boost
+    */
     size_t write(char *buf, bool portable = true) const {
         if (portable)
             return roaring_bitmap_portable_serialize(&roaring, buf);
@@ -698,8 +736,8 @@ inline RoaringSetBitForwardIterator &Roaring::end() const {
 }
 
 #endif /* INCLUDE_ROARING_HH_ */
-/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
-/* begin file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
 /*
 A C++ header for 64-bit Roaring Bitmaps, implemented by way of a map of many
 32-bit Roaring Bitmaps.
@@ -1691,4 +1729,4 @@ inline Roaring64MapSetBitForwardIterator Roaring64Map::end() const {
 }
 
 #endif /* INCLUDE_ROARING_64_MAP_HH_ */
-/* end file /home/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
