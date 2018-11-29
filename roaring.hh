@@ -1,6 +1,6 @@
-/* auto-generated on Thu  8 Nov 2018 11:13:30 EST. Do not edit! */
+/* auto-generated on Jeu 29 nov 2018 13:26:12 EST. Do not edit! */
 #include "roaring.h"
-/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /Users/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
 A C++ header for Roaring Bitmaps.
 */
@@ -22,10 +22,7 @@ class Roaring {
      * Create an empty bitmap
      */
     Roaring() {
-        bool is_ok = ra_init(&roaring.high_low_container);
-        if (!is_ok) {
-            throw std::runtime_error("failed memory alloc in constructor");
-        }
+        ra_init(&roaring.high_low_container);
         roaring.copy_on_write = false;
     }
 
@@ -53,14 +50,10 @@ class Roaring {
      * Move constructor. The moved object remains valid, i.e.
      * all methods can still be called on it.
      */
-    Roaring(Roaring &&r) {
+    Roaring(Roaring &&r) noexcept {
         roaring = std::move(r.roaring);
-
-        // left the moved object in a valid state
-        bool is_ok = ra_init_with_capacity(&r.roaring.high_low_container, 1);
-        if (!is_ok) {
-            throw std::runtime_error("failed memory alloc in constructor");
-        }
+        r.roaring.copy_on_write = false;
+        ra_init(&r.roaring.high_low_container);
     }
 
     /**
@@ -69,7 +62,7 @@ class Roaring {
      * Passing a NULL point is unsafe.
      * the pointer to the C struct will be invalid after the call.
      */
-    Roaring(roaring_bitmap_t *s) {
+    Roaring(roaring_bitmap_t *s) noexcept {
         // steal the interior struct
         roaring.high_low_container = s->high_low_container;
         roaring.copy_on_write = s->copy_on_write;
@@ -185,15 +178,11 @@ class Roaring {
      * Moves the content of the provided bitmap, and
      * discard the current content.
      */
-    Roaring &operator=(Roaring &&r) {
+    Roaring &operator=(Roaring &&r) noexcept {
         ra_clear(&roaring.high_low_container);
-
         roaring = std::move(r.roaring);
-        bool is_ok = ra_init_with_capacity(&r.roaring.high_low_container, 1);
-        if (!is_ok) {
-            throw std::runtime_error("failed memory alloc in assignment");
-        }
-
+        r.roaring.copy_on_write = false;
+        ra_init(&r.roaring.high_low_container);
         return *this;
     }
 
@@ -693,6 +682,17 @@ class RoaringSetBitForwardIterator final {
         return orig;
     }
 
+    type_of_iterator& operator--() { // prefix --
+        roaring_previous_uint32_iterator(&i);
+        return *this;
+    }
+
+    type_of_iterator operator--(int) { // postfix --
+        RoaringSetBitForwardIterator orig(*this);
+        roaring_previous_uint32_iterator(&i);
+        return orig;
+    }
+
     bool operator==(const RoaringSetBitForwardIterator &o) const {
         return i.current_value == *o && i.has_value == o.i.has_value;
     }
@@ -713,16 +713,6 @@ class RoaringSetBitForwardIterator final {
         }
     }
 
-    RoaringSetBitForwardIterator &operator=(
-        const RoaringSetBitForwardIterator &o) = default;
-    RoaringSetBitForwardIterator &operator=(RoaringSetBitForwardIterator &&o) =
-        default;
-
-    ~RoaringSetBitForwardIterator() = default;
-
-    RoaringSetBitForwardIterator(const RoaringSetBitForwardIterator &o)
-        : i(o.i) {}
-
     roaring_uint32_iterator_t i;
 };
 
@@ -736,8 +726,8 @@ inline RoaringSetBitForwardIterator &Roaring::end() const {
 }
 
 #endif /* INCLUDE_ROARING_HH_ */
-/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
-/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /Users/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /Users/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
 /*
 A C++ header for 64-bit Roaring Bitmaps, implemented by way of a map of many
 32-bit Roaring Bitmaps.
@@ -775,16 +765,6 @@ class Roaring64Map {
      * Construct a bitmap from a list of 64-bit integer values.
      */
     Roaring64Map(size_t n, const uint64_t *data) { addMany(n, data); }
-
-    /**
-     * Copy constructor
-     */
-    Roaring64Map(const Roaring64Map &r) = default;
-
-    /**
-     * Move constructor
-     */
-    Roaring64Map(Roaring64Map &&r) = default;
 
     /**
      * Construct a 64-bit map from a 32-bit one
@@ -926,31 +906,6 @@ class Roaring64Map {
         return roarings.count(highBytes(x)) == 0
                    ? false
                    : roarings.at(highBytes(x)).contains(lowBytes(x));
-    }
-
-    /**
-     * Destructor
-     */
-    ~Roaring64Map() = default;
-
-    /**
-     * Copies the content of the provided bitmap, and
-     * discards the current content.
-     */
-    Roaring64Map &operator=(const Roaring64Map &r) {
-        roarings = r.roarings;
-        copyOnWrite = r.copyOnWrite;
-        return *this;
-    }
-
-    /**
-     * Moves the content of the provided bitmap, and
-     * discards the current content.
-     */
-    Roaring64Map &operator=(Roaring64Map &&r) {
-        roarings = std::move(r.roarings);
-        copyOnWrite = r.copyOnWrite;
-        return *this;
     }
 
     /**
@@ -1709,11 +1664,6 @@ class Roaring64MapSetBitForwardIterator final {
         }
     }
 
-    ~Roaring64MapSetBitForwardIterator() = default;
-
-    Roaring64MapSetBitForwardIterator(
-        const Roaring64MapSetBitForwardIterator &o) = default;
-
    private:
     std::map<uint32_t, Roaring>::const_iterator map_iter;
     std::map<uint32_t, Roaring>::const_iterator map_end;
@@ -1729,4 +1679,4 @@ inline Roaring64MapSetBitForwardIterator Roaring64Map::end() const {
 }
 
 #endif /* INCLUDE_ROARING_64_MAP_HH_ */
-/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /Users/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
