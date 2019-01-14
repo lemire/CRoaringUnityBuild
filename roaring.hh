@@ -1,4 +1,4 @@
-/* auto-generated on Jeu 29 nov 2018 13:26:12 EST. Do not edit! */
+/* auto-generated on Lun 14 jan 2019 11:35:33 EST. Do not edit! */
 #include "roaring.h"
 /* begin file /Users/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
