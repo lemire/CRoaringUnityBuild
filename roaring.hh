@@ -1,6 +1,6 @@
-/* auto-generated on Lun 14 jan 2019 11:35:33 EST. Do not edit! */
+/* auto-generated on Mon 25 Feb 2019 16:08:20 EST. Do not edit! */
 #include "roaring.h"
-/* begin file /Users/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
 /*
 A C++ header for Roaring Bitmaps.
 */
@@ -23,7 +23,6 @@ class Roaring {
      */
     Roaring() {
         ra_init(&roaring.high_low_container);
-        roaring.copy_on_write = false;
     }
 
     /**
@@ -39,11 +38,12 @@ class Roaring {
     Roaring(const Roaring &r) {
         bool is_ok =
             ra_copy(&r.roaring.high_low_container, &roaring.high_low_container,
-                    r.roaring.copy_on_write);
+                    roaring_bitmap_get_copy_on_write(&r.roaring));
         if (!is_ok) {
             throw std::runtime_error("failed memory alloc in constructor");
         }
-        roaring.copy_on_write = r.roaring.copy_on_write;
+        roaring_bitmap_set_copy_on_write(&roaring,
+            roaring_bitmap_get_copy_on_write(&r.roaring));
     }
 
     /**
@@ -52,7 +52,6 @@ class Roaring {
      */
     Roaring(Roaring &&r) noexcept {
         roaring = std::move(r.roaring);
-        r.roaring.copy_on_write = false;
         ra_init(&r.roaring.high_low_container);
     }
 
@@ -65,7 +64,6 @@ class Roaring {
     Roaring(roaring_bitmap_t *s) noexcept {
         // steal the interior struct
         roaring.high_low_container = s->high_low_container;
-        roaring.copy_on_write = s->copy_on_write;
         // deallocate the old container
         free(s);
     }
@@ -166,11 +164,12 @@ class Roaring {
         ra_clear(&roaring.high_low_container);
         bool is_ok =
             ra_copy(&r.roaring.high_low_container, &roaring.high_low_container,
-                    r.roaring.copy_on_write);
+                    roaring_bitmap_get_copy_on_write(&r.roaring));
         if (!is_ok) {
             throw std::runtime_error("failed memory alloc in assignment");
         }
-        roaring.copy_on_write = r.roaring.copy_on_write;
+        roaring_bitmap_set_copy_on_write(&roaring,
+            roaring_bitmap_get_copy_on_write(&r.roaring));
         return *this;
     }
 
@@ -181,7 +180,6 @@ class Roaring {
     Roaring &operator=(Roaring &&r) noexcept {
         ra_clear(&roaring.high_low_container);
         roaring = std::move(r.roaring);
-        r.roaring.copy_on_write = false;
         ra_init(&r.roaring.high_low_container);
         return *this;
     }
@@ -539,7 +537,9 @@ class Roaring {
     /**
      * Whether or not we apply copy and write.
      */
-    void setCopyOnWrite(bool val) { roaring.copy_on_write = val; }
+    void setCopyOnWrite(bool val) {
+        roaring_bitmap_set_copy_on_write(&roaring, val);
+    }
 
     /**
      * Print the content of the bitmap
@@ -574,7 +574,9 @@ class Roaring {
     /**
      * Whether or not copy and write is active.
      */
-    bool getCopyOnWrite() const { return roaring.copy_on_write; }
+    bool getCopyOnWrite() const {
+        return roaring_bitmap_get_copy_on_write(&roaring);
+    }
 
     /**
      * computes the logical or (union) between "n" bitmaps (referenced by a
@@ -726,8 +728,8 @@ inline RoaringSetBitForwardIterator &Roaring::end() const {
 }
 
 #endif /* INCLUDE_ROARING_HH_ */
-/* end file /Users/dlemire/CVS/github/CRoaring/cpp/roaring.hh */
-/* begin file /Users/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring.hh */
+/* begin file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
 /*
 A C++ header for 64-bit Roaring Bitmaps, implemented by way of a map of many
 32-bit Roaring Bitmaps.
@@ -1679,4 +1681,4 @@ inline Roaring64MapSetBitForwardIterator Roaring64Map::end() const {
 }
 
 #endif /* INCLUDE_ROARING_64_MAP_HH_ */
-/* end file /Users/dlemire/CVS/github/CRoaring/cpp/roaring64map.hh */
+/* end file /Users/lemire/CVS/github/CRoaring/cpp/roaring64map.hh */
