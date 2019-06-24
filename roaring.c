@@ -1,4 +1,4 @@
-/* auto-generated on Mon 25 Feb 2019 16:08:20 EST. Do not edit! */
+/* auto-generated on Mon 24 Jun 2019 11:51:30 EDT. Do not edit! */
 #include "roaring.h"
 
 /* used for http://dmalloc.com/ Dmalloc - Debug Malloc Library */
@@ -3392,7 +3392,7 @@ extern inline void bitset_container_set(bitset_container_t *bitset, uint16_t pos
 extern inline void bitset_container_unset(bitset_container_t *bitset, uint16_t pos);
 extern inline bool bitset_container_get(const bitset_container_t *bitset,
                                         uint16_t pos);
-extern inline int32_t bitset_container_serialized_size_in_bytes();
+extern inline int32_t bitset_container_serialized_size_in_bytes(void);
 extern inline bool bitset_container_add(bitset_container_t *bitset, uint16_t pos);
 extern inline bool bitset_container_remove(bitset_container_t *bitset, uint16_t pos);
 extern inline bool bitset_container_contains(const bitset_container_t *bitset,
@@ -4071,7 +4071,9 @@ int bitset_container_rank(const bitset_container_t *container, uint16_t x) {
   // k is a power of 64
   int bitsleft = x32 - k + 1;// will be in [0,64)
   uint64_t leftoverword = container->array[k / 64];// k / 64 should be within scope
-  leftoverword = leftoverword & ((UINT64_C(1) << bitsleft) - 1);
+  // next line may compile  to 2 or 3 efficient instructions, including a shift
+  // and it works even if bitsleft == 0.
+  leftoverword = leftoverword & ((UINT64_C(1) << bitsleft) - 1); 
   sum += hamming(leftoverword);
   return sum;
 }
@@ -8712,8 +8714,8 @@ uint64_t roaring_bitmap_range_cardinality(const roaring_bitmap_t *ra,
     range_end--; // make range_end inclusive
     // now we have: 0 <= range_start <= range_end <= UINT32_MAX
 
-    int minhb = range_start >> 16;
-    int maxhb = range_end >> 16;
+    uint16_t minhb = range_start >> 16;
+    uint16_t maxhb = range_end >> 16;
 
     uint64_t card = 0;
 
