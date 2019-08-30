@@ -1,4 +1,4 @@
-/* auto-generated on Thu Jun 27 17:17:35 EDT 2019. Do not edit! */
+/* auto-generated on Fri Aug 30 19:43:10 EDT 2019. Do not edit! */
 #include "roaring.h"
 /* begin file cpp/roaring.hh */
 /*
