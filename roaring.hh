@@ -1,4 +1,4 @@
-/* auto-generated on Fri Aug 30 19:43:10 EDT 2019. Do not edit! */
+/* auto-generated on Mon 17 Feb 2020 14:42:17 EST. Do not edit! */
 #include "roaring.h"
 /* begin file cpp/roaring.hh */
 /*
@@ -1179,7 +1179,7 @@ class Roaring64Map {
      */
     bool removeRunCompression() {
         return std::accumulate(
-            roarings.begin(), roarings.end(), false,
+            roarings.begin(), roarings.end(), true,
             [](bool previous, std::pair<const uint32_t, Roaring> &map_entry) {
                 return map_entry.second.removeRunCompression() && previous;
             });
@@ -1193,7 +1193,7 @@ class Roaring64Map {
      */
     bool runOptimize() {
         return std::accumulate(
-            roarings.begin(), roarings.end(), false,
+            roarings.begin(), roarings.end(), true,
             [](bool previous, std::pair<const uint32_t, Roaring> &map_entry) {
                 return map_entry.second.runOptimize() && previous;
             });
