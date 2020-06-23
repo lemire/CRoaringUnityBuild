@@ -9,6 +9,8 @@ This code is automatically generated from https://github.com/RoaringBitmap/CRoar
  echo -e "#include <roaring.hh>\n int main(){Roaring x;}" > test.cpp && cc -c roaring.c -I. -std=c11 && c++ -o test test.cpp roaring.o -I. -std=c++11
 ```
 
+You need to compile and link `roaring.c` with your project: this is not a header-only build.
+
 ## Usage (C)
 
 ```C
