@@ -3,6 +3,11 @@ Dumps of CRoaring unity builds (for convenience)
 
 This code is automatically generated from https://github.com/RoaringBitmap/CRoaring
 
+## Building
+
+```bash
+ echo -e "#include <roaring.hh>\n int main(){Roaring x;}" > test.cpp && cc -c roaring.c -I. -std=c11 && c++ -o test test.cpp roaring.o -I. -std=c++11
+```
 
 ## Usage (C)
 
@@ -32,4 +37,4 @@ int main() {
   std::cout << "cardinality = " << r1.cardinality() << std::endl;
   return 0;
 }
-
+```
