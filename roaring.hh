@@ -1,5 +1,5 @@
 // !!! DO NOT EDIT - THIS IS AN AUTO-GENERATED FILE !!!
-// Created by amalgamation.sh on Thu 15 Apr 2021 11:00:31 EDT
+// Created by amalgamation.sh on Mon  5 Jul 2021 13:06:13 EDT
 
 /*
  * Copyright 2016-2020 The CRoaring authors
@@ -1120,7 +1120,7 @@ class Roaring64Map {
         // we put std::numeric_limits<>::max/min in parenthesis
         // to avoid a clash with the Windows.h header under Windows
         return roarings.size() ==
-                       ((size_t)(std::numeric_limits<uint32_t>::max)()) + 1
+                       ((uint64_t)(std::numeric_limits<uint32_t>::max)()) + 1
                    ? std::all_of(
                          roarings.cbegin(), roarings.cend(),
                          [](const std::pair<uint32_t, Roaring> &roaring_map_entry) {
@@ -1315,7 +1315,7 @@ class Roaring64Map {
      */
     void iterate(api::roaring_iterator64 iterator, void *ptr) const {
         std::for_each(roarings.begin(), roarings.cend(),
-                      [=](const std::pair<uint32_t, Roaring> &map_entry) {
+                      [=](const std::pair<const uint32_t, Roaring> &map_entry) {
                           roaring_iterate64(&map_entry.second.roaring, iterator,
                                             uint64_t(map_entry.first) << 32,
                                             ptr);
@@ -1381,7 +1381,7 @@ class Roaring64Map {
         buf += sizeof(uint64_t);
         std::for_each(
             roarings.cbegin(), roarings.cend(),
-            [&buf, portable](const std::pair<uint32_t, Roaring> &map_entry) {
+            [&buf, portable](const std::pair<const uint32_t, Roaring> &map_entry) {
                 // push map key
                 std::memcpy(buf, &map_entry.first, sizeof(uint32_t));
                 // ^-- Note: `*((uint32_t*)buf) = map_entry.first;` is undefined
@@ -1557,7 +1557,7 @@ class Roaring64Map {
                 (void *)&outer_iter_data);
             std::for_each(
                 ++map_iter, roarings.cend(),
-                [](const std::pair<uint32_t, Roaring> &map_entry) {
+                [](const std::pair<const uint32_t, Roaring> &map_entry) {
                     map_entry.second.iterate(
                         [](uint32_t low_bits, void *high_bits) -> bool {
                             std::printf(",%llu",
@@ -1599,7 +1599,7 @@ class Roaring64Map {
             std::for_each(
                 ++map_iter, roarings.cend(),
                 [&outer_iter_data](
-                    const std::pair<uint32_t, Roaring> &map_entry) {
+                    const std::pair<const uint32_t, Roaring> &map_entry) {
                     outer_iter_data.high_bits = map_entry.first;
                     map_entry.second.iterate(
                         [](uint32_t low_bits, void *inner_iter_data) -> bool {
