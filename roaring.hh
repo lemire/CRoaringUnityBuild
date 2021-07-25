@@ -1,5 +1,5 @@
 // !!! DO NOT EDIT - THIS IS AN AUTO-GENERATED FILE !!!
-// Created by amalgamation.sh on Mon  5 Jul 2021 13:06:13 EDT
+// Created by amalgamation.sh on Sun 25 Jul 2021 12:08:33 EDT
 
 /*
  * Copyright 2016-2020 The CRoaring authors
