@@ -1,5 +1,5 @@
 // !!! DO NOT EDIT - THIS IS AN AUTO-GENERATED FILE !!!
-// Created by amalgamation.sh on Sun 25 Jul 2021 12:08:33 EDT
+// Created by amalgamation.sh on Mon 16 Aug 2021 13:20:45 EDT
 
 /*
  * Copyright 2016-2020 The CRoaring authors
@@ -38,6 +38,9 @@ A C++ header for Roaring Bitmaps.
 
 #if !defined(ROARING_EXCEPTIONS)
 // Note that __cpp_exceptions is required by C++98 and we require C++11 and better.
+#ifndef __cpp_exceptions
+#error "__cpp_exceptions should be defined"
+#endif
 # if __cpp_exceptions
 #  define ROARING_EXCEPTIONS 1
 # else
@@ -86,7 +89,7 @@ class Roaring {
      */
     Roaring(const Roaring &r) : Roaring() {
         if (!api::roaring_bitmap_overwrite(&roaring, &r.roaring)) {
-            ROARING_TERMINATE("failed memory alloc in constructor");
+            ROARING_TERMINATE("failed roaring_bitmap_overwrite in constructor");
         }
         api::roaring_bitmap_set_copy_on_write(&roaring,
             api::roaring_bitmap_get_copy_on_write(&r.roaring));
@@ -1305,21 +1308,24 @@ class Roaring64Map {
     }
 
     /**
-     * Iterate over the bitmap elements. The function iterator is called once
-     * for all the values with ptr (can be NULL) as the second parameter of each
-     * call.
+     * Iterate over the bitmap elements in order(start from the smallest one)
+     * and call iterator once for every element until the iterator function returns
+     * false. To iterate over all values, the iterator function should always return
+     * true.
      *
-     * roaring_iterator is simply a pointer to a function that returns bool
+     * The roaring_iterator64 parameter is a pointer to a function that returns bool
      * (true means that the iteration should continue while false means that it
-     * should stop), and takes (uint32_t,void*) as inputs.
+     * should stop), and takes (uint64_t element, void* ptr) as inputs.
      */
     void iterate(api::roaring_iterator64 iterator, void *ptr) const {
-        std::for_each(roarings.begin(), roarings.cend(),
-                      [=](const std::pair<const uint32_t, Roaring> &map_entry) {
-                          roaring_iterate64(&map_entry.second.roaring, iterator,
-                                            uint64_t(map_entry.first) << 32,
-                                            ptr);
-                      });
+	for (const auto &map_entry : roarings) {
+            bool should_continue =
+                roaring_iterate64(&map_entry.second.roaring, iterator,
+                                  uint64_t(map_entry.first) << 32, ptr);
+            if (!should_continue) {
+                break;
+            }
+        }
     }
 
     /**
