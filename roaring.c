@@ -1,5 +1,5 @@
 // !!! DO NOT EDIT - THIS IS AN AUTO-GENERATED FILE !!!
-// Created by amalgamation.sh on Mon 16 Aug 2021 13:20:45 EDT
+// Created by amalgamation.sh on Wed  6 Apr 2022 09:29:42 EDT
 
 /*
  * Copyright 2016-2020 The CRoaring authors
@@ -1976,6 +1976,10 @@ inline bool array_container_contains(const array_container_t *arr,
 
 }
 
+void array_container_offset(const array_container_t *c,
+                            container_t **loc, container_t **hic,
+                            uint16_t offset);
+
 //* Check whether a range of values from range_start (included) to range_end (excluded) is present. */
 static inline bool array_container_contains_range(const array_container_t *arr,
                                                     uint32_t range_start, uint32_t range_end) {
@@ -2461,6 +2465,9 @@ int bitset_container_andnot_nocard(const bitset_container_t *src_1,
                                    const bitset_container_t *src_2,
                                    bitset_container_t *dst);
 
+void bitset_container_offset(const bitset_container_t *c,
+                             container_t **loc, container_t **hic,
+                             uint16_t offset);
 /*
  * Write out the 16-bit integers contained in this container as a list of 32-bit
  * integers using base
@@ -3118,6 +3125,10 @@ bool run_container_select(const run_container_t *container,
 
 void run_container_andnot(const run_container_t *src_1,
                           const run_container_t *src_2, run_container_t *dst);
+
+void run_container_offset(const run_container_t *c,
+                         container_t **loc, container_t **hic,
+                         uint16_t offset);
 
 /* Returns the smallest value (assumes not empty) */
 inline uint16_t run_container_minimum(const run_container_t *run) {
@@ -5697,6 +5708,43 @@ static inline container_t* container_xor(
             assert(false);
             __builtin_unreachable();
             return NULL;  // unreached
+    }
+}
+
+/* Applies an offset to the non-empty container 'c'.
+ * The results are stored in new containers returned via 'lo' and 'hi', for the
+ * low and high halves of the result (where the low half matches the original key
+ * and the high one corresponds to values for the following key).
+ * Either one of 'lo' and 'hi' are allowed to be 'NULL', but not both.
+ * Whenever one of them is not 'NULL', it should point to a 'NULL' container.
+ * Whenever one of them is 'NULL' the shifted elements for that part will not be
+ * computed.
+ * If either of the resulting containers turns out to be empty, the pointed
+ * container will remain 'NULL'.
+ */
+static inline void container_add_offset(const container_t *c, uint8_t type,
+                                        container_t **lo, container_t **hi,
+                                        uint16_t offset) {
+    assert(offset != 0);
+    assert(container_nonzero_cardinality(c, type));
+    assert(lo != NULL || hi != NULL);
+    assert(lo == NULL || *lo == NULL);
+    assert(hi == NULL || *hi == NULL);
+
+    switch (type) {
+    case BITSET_CONTAINER_TYPE:
+        bitset_container_offset(const_CAST_bitset(c), lo, hi, offset);
+        break;
+    case ARRAY_CONTAINER_TYPE:
+        array_container_offset(const_CAST_array(c), lo, hi, offset);
+        break;
+    case RUN_CONTAINER_TYPE:
+        run_container_offset(const_CAST_run(c), lo, hi, offset);
+        break;
+    default:
+        assert(false);
+        __builtin_unreachable();
+        break;
     }
 }
 
@@ -10129,6 +10177,33 @@ array_container_t *array_container_clone(const array_container_t *src) {
     return newcontainer;
 }
 
+void array_container_offset(const array_container_t *c,
+                            container_t **loc, container_t **hic,
+                            uint16_t offset) {
+    array_container_t *lo = NULL, *hi = NULL;
+    int top, lo_cap, hi_cap;
+
+    top = (1 << 16) - offset;
+
+    lo_cap = count_less(c->array, c->cardinality, top);
+    if (loc && lo_cap) {
+        lo = array_container_create_given_capacity(lo_cap);
+        for (int i = 0; i < lo_cap; ++i) {
+            array_container_add(lo, c->array[i] + offset);
+        }
+        *loc = (container_t*)lo;
+    }
+
+    hi_cap = c->cardinality - lo_cap;
+    if (hic && hi_cap) {
+        hi = array_container_create_given_capacity(hi_cap);
+        for (int i = lo_cap; i < c->cardinality; ++i) {
+            array_container_add(hi, c->array[i] + offset);
+        }
+        *hic = (container_t*)hi;
+    }
+}
+
 int array_container_shrink_to_fit(array_container_t *src) {
     if (src->cardinality == src->capacity) return 0;  // nothing to do
     int savings = src->capacity - src->cardinality;
@@ -10638,6 +10713,66 @@ bitset_container_t *bitset_container_clone(const bitset_container_t *src) {
     memcpy(bitset->words, src->words,
            sizeof(uint64_t) * BITSET_CONTAINER_SIZE_IN_WORDS);
     return bitset;
+}
+
+void bitset_container_offset(const bitset_container_t *c,
+                             container_t **loc, container_t **hic,
+                             uint16_t offset) {
+    bitset_container_t *bc = NULL;
+    uint64_t val;
+    uint16_t b, i, end;
+
+    b = offset >> 6;
+    i = offset % 64;
+    end = 1024 - b;
+
+    if (loc != NULL) {
+        bc = bitset_container_create();
+        if (i == 0) {
+            memcpy(bc->words+b, c->words, 8*end);
+        } else {
+            bc->words[b] = c->words[0] << i;
+            for (uint32_t k = 1; k < end; ++k) {
+                val = c->words[k] << i;
+                val |= c->words[k-1] >> (64 - i);
+                bc->words[b+k] = val;
+            }
+        }
+
+        bc->cardinality = bitset_container_compute_cardinality(bc);
+        if (bc->cardinality != 0) {
+            *loc = bc;
+        }
+        if (bc->cardinality == c->cardinality) {
+            return;
+        }
+    }
+
+    if (hic == NULL) {
+        return;
+    }
+
+    if (bc == NULL || bc->cardinality != 0) {
+        bc = bitset_container_create();
+    }
+
+    if (i == 0) {
+        memcpy(bc->words, c->words+end, 8*b);
+    } else {
+        for (uint32_t k = end; k < 1024; ++k) {
+            val = c->words[k] << i;
+	    val |= c->words[k-1] >> (64 - i);
+	    bc->words[k-end] = val;
+        }
+        bc->words[b] = c->words[1023] >> (64 - i);
+    }
+
+    bc->cardinality = bitset_container_compute_cardinality(bc);
+    if (bc->cardinality == 0) {
+	    bitset_container_free(bc);
+	    return;
+    }
+    *hic = bc;
 }
 
 void bitset_container_set_range(bitset_container_t *bitset, uint32_t begin,
@@ -14053,9 +14188,15 @@ bool bitset_bitset_container_ixor(
     bitset_container_t *src_1, const bitset_container_t *src_2,
     container_t **dst
 ){
-    bool ans = bitset_bitset_container_xor(src_1, src_2, dst);
-    bitset_container_free(src_1);
-    return ans;
+    int card = bitset_container_xor(src_1, src_2, src_1);
+    if (card <= DEFAULT_MAX_SIZE) {
+        *dst = array_container_from_bitset(src_1);
+        bitset_container_free(src_1);
+        return false;  // not bitset
+    } else {
+        *dst = src_1;
+        return true;
+    }
 }
 
 bool array_bitset_container_ixor(
@@ -14249,6 +14390,63 @@ run_container_t *run_container_clone(const run_container_t *src) {
     run->n_runs = src->n_runs;
     memcpy(run->runs, src->runs, src->n_runs * sizeof(rle16_t));
     return run;
+}
+
+void run_container_offset(const run_container_t *c,
+                          container_t **loc, container_t **hic,
+                          uint16_t offset) {
+    run_container_t *lo = NULL, *hi = NULL;
+
+    bool split;
+    int lo_cap, hi_cap;
+    int top, pivot;
+
+    top = (1 << 16) - offset;
+    pivot = run_container_index_equalorlarger(c, top);
+
+    if (pivot == -1) {
+        split = false;
+        lo_cap = c->n_runs;
+        hi_cap = 0;
+    } else {
+        split = c->runs[pivot].value <= top;
+        lo_cap = pivot + (split ? 1 : 0);
+        hi_cap = c->n_runs - pivot;
+    }
+
+    if (loc && lo_cap) {
+        lo = run_container_create_given_capacity(lo_cap);
+        memcpy(lo->runs, c->runs, lo_cap*sizeof(rle16_t));
+        lo->n_runs = lo_cap;
+        for (int i = 0; i < lo_cap; ++i) {
+            lo->runs[i].value += offset;
+        }
+        *loc = (container_t*)lo;
+    }
+
+    if (hic && hi_cap) {
+        hi = run_container_create_given_capacity(hi_cap);
+        memcpy(hi->runs, c->runs+pivot, hi_cap*sizeof(rle16_t));
+        hi->n_runs = hi_cap;
+        for (int i = 0; i < hi_cap; ++i) {
+            hi->runs[i].value += offset;
+        }
+        *hic = (container_t*)hi;
+    }
+
+    // Fix the split.
+    if (split) {
+        if (lo != NULL) {
+            // Add the missing run to 'lo', exhausting length.
+            lo->runs[lo->n_runs-1].length = (1 << 16) - lo->runs[lo->n_runs-1].value - 1;
+        }
+
+        if (hi != NULL) {
+            // Fix the first run in 'hi'.
+            hi->runs[0].length -= UINT16_MAX - hi->runs[0].value + 1;
+            hi->runs[0].value = 0;
+        }
+    }
 }
 
 /* Free memory. */
@@ -15000,8 +15198,6 @@ using namespace ::roaring::internal;
 extern "C" { namespace roaring { namespace api {
 #endif
 
-extern inline bool roaring_bitmap_contains(const roaring_bitmap_t *r,
-                                           uint32_t val);
 extern inline bool roaring_bitmap_get_copy_on_write(const roaring_bitmap_t* r);
 extern inline void roaring_bitmap_set_copy_on_write(roaring_bitmap_t* r, bool cow);
 
@@ -17115,6 +17311,112 @@ void roaring_bitmap_flip_inplace(roaring_bitmap_t *x1, uint64_t range_start,
     }
 }
 
+static void offset_append_with_merge(roaring_array_t *ra, int k, container_t *c, uint8_t t) {
+    int size = ra_get_size(ra);
+    if (size == 0 || ra_get_key_at_index(ra, size-1) != k) {
+        // No merge.
+        ra_append(ra, k, c, t);
+        return;
+    }
+
+    uint8_t last_t, new_t;
+    container_t *last_c, *new_c;
+
+    // NOTE: we don't need to unwrap here, since we added last_c ourselves
+    // we have the certainty it's not a shared container.
+    // The same applies to c, as it's the result of calling container_offset.
+    last_c = ra_get_container_at_index(ra, size-1, &last_t);
+    new_c = container_ior(last_c, last_t, c, t, &new_t);
+
+    ra_set_container_at_index(ra, size-1, new_c, new_t);
+
+    // Comparison of pointers of different origin is UB (or so claim some compiler
+    // makers), so we compare their bit representation only.
+    if ((uintptr_t)last_c != (uintptr_t)new_c) {
+        container_free(last_c, last_t);
+    }
+    container_free(c, t);
+}
+
+// roaring_bitmap_add_offset adds the value 'offset' to each and every value in
+// a bitmap, generating a new bitmap in the process. If offset + element is
+// outside of the range [0,2^32), that the element will be dropped.
+// We need "offset" to be 64 bits because we want to support values
+// between -0xFFFFFFFF up to +0xFFFFFFFF.
+roaring_bitmap_t *roaring_bitmap_add_offset(const roaring_bitmap_t *bm,
+                                            int64_t offset) {
+    roaring_bitmap_t *answer;
+    roaring_array_t *ans_ra;
+    int64_t container_offset;
+    uint16_t in_offset;
+
+    const roaring_array_t *bm_ra = &bm->high_low_container;
+    int length = bm_ra->size;
+
+    if (offset == 0) {
+        return roaring_bitmap_copy(bm);
+    }
+
+    container_offset = offset >> 16;
+    in_offset = (uint16_t)(offset - container_offset * (1 << 16));
+
+    answer = roaring_bitmap_create();
+    roaring_bitmap_set_copy_on_write(answer, is_cow(bm));
+
+    ans_ra = &answer->high_low_container;
+
+    if (in_offset == 0) {
+        ans_ra = &answer->high_low_container;
+
+        for (int i = 0, j = 0; i < length; ++i) {
+            int64_t key = ra_get_key_at_index(bm_ra, i);
+            key += container_offset;
+
+            if (key < 0 || key >= (1 << 16)) {
+                continue;
+            }
+
+            ra_append_copy(ans_ra, bm_ra, i, false);
+            ans_ra->keys[j++] = key;
+        }
+
+        return answer;
+    }
+
+    uint8_t t;
+    const container_t *c;
+    container_t *lo, *hi, **lo_ptr, **hi_ptr;
+    int64_t k;
+
+    for (int i = 0; i < length; ++i) {
+        lo = hi = lo_ptr = hi_ptr = NULL;
+
+        k = ra_get_key_at_index(bm_ra, i)+container_offset;
+        if (k >= 0 && k < (1 << 16)) {
+            lo_ptr = &lo;
+        }
+        if (k+1 >= 0 && k+1 < (1 << 16)) {
+            hi_ptr = &hi;
+        }
+        if (lo_ptr == NULL && hi_ptr == NULL) {
+            continue;
+        }
+
+        c = ra_get_container_at_index(bm_ra, i, &t);
+        c = container_unwrap_shared(c, &t);
+
+        container_add_offset(c, t, lo_ptr, hi_ptr, in_offset);
+        if (lo != NULL) {
+            offset_append_with_merge(ans_ra, k, lo, t);
+        }
+        if (hi != NULL) {
+            ra_append(ans_ra, k+1, hi, t);
+        }
+    }
+
+    return answer;
+}
+
 roaring_bitmap_t *roaring_bitmap_lazy_or(const roaring_bitmap_t *x1,
                                          const roaring_bitmap_t *x2,
                                          const bool bitsetconversion) {
@@ -17965,6 +18267,14 @@ roaring_bitmap_frozen_view(const char *buf, size_t length) {
     rb->high_low_container.containers =
         (container_t **)arena_alloc(&arena,
                                     sizeof(container_t*) * num_containers);
+    // Ensure offset of high_low_container.containers is known distance used in
+    // C++ wrapper. sizeof(roaring_bitmap_t) is used as it is the size of the
+    // only allocation that precedes high_low_container.containers. If this is
+    // changed (new allocation or changed order), this offset will also need to
+    // be changed in the C++ wrapper.
+    assert(rb ==
+           (roaring_bitmap_t *)((char *)rb->high_low_container.containers -
+                                sizeof(roaring_bitmap_t)));
     for (int32_t i = 0; i < num_containers; i++) {
         switch (typecodes[i]) {
             case BITSET_CONTAINER_TYPE: {
@@ -18750,6 +19060,11 @@ bool ra_portable_deserialize(roaring_array_t *answer, const char *buf, const siz
         }
         memcpy(&size, buf, sizeof(int32_t));
         buf += sizeof(uint32_t);
+    }
+    if (size < 0) {
+       fprintf(stderr, "You cannot have a negative number of containers, the data must be corrupted: %" PRId32 "\n",
+                size);
+       return false; // logically impossible
     }
     if (size > (1<<16)) {
        fprintf(stderr, "You cannot have so many containers, the data must be corrupted: %" PRId32 "\n",
