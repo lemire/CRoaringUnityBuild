@@ -1,5 +1,5 @@
 // !!! DO NOT EDIT - THIS IS AN AUTO-GENERATED FILE !!!
-// Created by amalgamation.sh on Wed  6 Apr 2022 09:29:42 EDT
+// Created by amalgamation.sh on Wed 13 Apr 2022 08:57:41 EDT
 
 /*
  * Copyright 2016-2020 The CRoaring authors
@@ -118,7 +118,7 @@ public:
      * The pointer to the C struct will be invalid after the call.
      */
     explicit Roaring(roaring_bitmap_t *s) noexcept : roaring (*s) {
-        free(s);  // deallocate the passed-in pointer
+        roaring_free(s);  // deallocate the passed-in pointer
     }
 
     /**
@@ -673,7 +673,7 @@ public:
      */
     static Roaring fastunion(size_t n, const Roaring **inputs) {
         const roaring_bitmap_t **x =
-            (const roaring_bitmap_t **)malloc(n * sizeof(roaring_bitmap_t *));
+            (const roaring_bitmap_t **)roaring_malloc(n * sizeof(roaring_bitmap_t *));
         if (x == NULL) {
             ROARING_TERMINATE("failed memory alloc in fastunion");
         }
@@ -681,11 +681,11 @@ public:
 
         roaring_bitmap_t *c_ans = api::roaring_bitmap_or_many(n, x);
         if (c_ans == NULL) {
-            free(x);
+            roaring_free(x);
             ROARING_TERMINATE("failed memory alloc in fastunion");
         }
         Roaring ans(c_ans);
-        free(x);
+        roaring_free(x);
         return ans;
     }
 
