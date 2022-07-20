@@ -1,8 +1,12 @@
 // !!! DO NOT EDIT - THIS IS AN AUTO-GENERATED FILE !!!
-// Created by amalgamation.sh on Wed 13 Apr 2022 08:57:41 EDT
+// Created by amalgamation.sh on Wed 20 Jul 2022 16:25:25 EDT
 
 /*
- * Copyright 2016-2020 The CRoaring authors
+ * The CRoaring project is under a dual license (Apache/MIT).
+ * Users of the library may choose one or the other license.
+ */
+/*
+ * Copyright 2016-2022 The CRoaring authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +21,37 @@
  * limitations under the License.
  *
  * SPDX-License-Identifier: Apache-2.0
+ */
+/*
+ * MIT License
+ *
+ * Copyright 2016-2022 The CRoaring authors
+ *
+ * Permission is hereby granted, free of charge, to any
+ * person obtaining a copy of this software and associated
+ * documentation files (the "Software"), to deal in the
+ * Software without restriction, including without
+ * limitation the rights to use, copy, modify, merge,
+ * publish, distribute, sublicense, and/or sell copies of
+ * the Software, and to permit persons to whom the Software
+ * is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice
+ * shall be included in all copies or substantial portions
+ * of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ * ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+ * TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+ * PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+ * SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+ * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+ * IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #include "roaring.h"
@@ -267,7 +302,7 @@ static inline uint32_t croaring_detect_supported_architectures() {
 #define INCLUDE_PORTABILITY_H_
 
 #ifndef _GNU_SOURCE
-#define _GNU_SOURCE
+#define _GNU_SOURCE 1
 #endif // _GNU_SOURCE
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS 1
